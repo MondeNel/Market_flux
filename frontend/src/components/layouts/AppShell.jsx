@@ -1,5 +1,5 @@
 /**
- * @file AppShell.jsx
+ * @file src/components/layouts/AppShell.jsx
  *
  * @description
  * Global visual shell for the Market Flux prototype.
@@ -7,10 +7,10 @@
  * Responsibilities:
  * - Render the global background
  * - Establish the game viewport
- * - Control mobile/desktop width
- * - Provide the visual layer on which game components sit
+ * - Provide mobile-first viewport sizing
+ * - Keep the application visually isolated from the page
  *
- * The shell intentionally contains no game logic.
+ * The shell contains no game logic.
  */
 
 /**
@@ -22,9 +22,18 @@
  */
 function AppShell({ children }) {
   return (
-    <main className="relative min-h-screen w-full overflow-hidden bg-[#02060d] text-white">
+    <main
+      className="
+        relative
+        min-h-[100dvh]
+        w-full
+        overflow-hidden
+        bg-[#02060d]
+        text-white
+      "
+    >
       {/* ================================================================
-          BACKGROUND
+          MOBILE-FIRST BACKGROUND
           ================================================================ */}
 
       <div
@@ -33,15 +42,17 @@ function AppShell({ children }) {
           fixed
           inset-0
           z-0
+          bg-[#02060d]
           bg-[url('/background.png')]
           bg-cover
           bg-center
           bg-no-repeat
+          sm:bg-[length:cover]
         "
       />
 
       {/* ================================================================
-          ATMOSPHERIC OVERLAY
+          DARK ATMOSPHERIC LAYER
           ================================================================ */}
 
       <div
@@ -50,15 +61,24 @@ function AppShell({ children }) {
           fixed
           inset-0
           z-0
-          bg-black/10
+          bg-black/20
         "
       />
 
       {/* ================================================================
-          GAME VIEWPORT
+          MOBILE SAFE-AREA / GAME VIEWPORT
           ================================================================ */}
 
-      <div className="relative z-10 mx-auto min-h-screen w-full max-w-md">
+      <div
+        className="
+          relative
+          z-10
+          mx-auto
+          min-h-[100dvh]
+          w-full
+          max-w-md
+        "
+      >
         {children}
       </div>
     </main>
