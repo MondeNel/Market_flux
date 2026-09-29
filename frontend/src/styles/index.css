@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/*
+ * ============================================================================
+ * MARKET FLUX — GLOBAL STYLES
+ * ============================================================================
+ */
+
 :root {
   font-family:
     Inter,
@@ -11,12 +17,13 @@
     sans-serif;
 
   color: #ffffff;
-  background: #02060d;
-
+  background: #02060c;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -29,18 +36,23 @@ body,
 
 body {
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
-  background: #02060d;
+  background: #02060c;
 }
 
 button,
 input,
-select,
-textarea {
+select {
   font: inherit;
 }
 
 button {
   -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #00c8ff;
+  outline-offset: 3px;
 }
