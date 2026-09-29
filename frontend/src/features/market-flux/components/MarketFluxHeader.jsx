@@ -4,18 +4,17 @@
  * @description
  * Mobile-first HUD header for Market Flux.
  *
- * The header establishes the primary visual language of the game:
- * - Market Flux identity
- * - Player balance
- * - Player rank
- * - Follower count
- * - Dark liquid-glass HUD
- * - Cyan atmospheric edge lighting
+ * Layout: free-floating brand on the left, one liquid-glass player panel on
+ * the right (avatar, balance, rank, followers) with a shiny gradient edge.
+ *
+ * Depends on the shared classes in src/styles/effects.css:
+ * market-flux-liquid and market-flux-edge.
  *
  * No gameplay state is managed here.
  */
 
 import {
+  CircleUserRound,
   Trophy,
   UsersRound,
   WalletCards,
@@ -40,55 +39,34 @@ function MarketFluxHeader({
       {/* Atmospheric glow behind the HUD */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -inset-x-2 top-0 h-24 bg-[radial-gradient(ellipse_at_top,rgba(0,184,255,0.16),transparent_68%)] blur-xl"
+        className="pointer-events-none absolute -inset-x-2 top-0 h-24 bg-[radial-gradient(ellipse_at_top_right,rgba(0,184,255,0.2),transparent_65%)] blur-xl"
       />
 
-      {/* Main HUD */}
-      <div className="market-flux-glow market-flux-glass relative overflow-hidden rounded-[18px] border border-cyan-400/30">
-        {/* Top glass highlight */}
+      <div className="relative flex items-center justify-between gap-3">
+        <Brand />
+
         <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent"
-        />
+          className="
+            market-flux-liquid
+            market-flux-edge
+            flex
+            min-w-0
+            shrink-0
+            items-center
+            gap-1
+            rounded-[16px]
+            py-2
+            pl-2.5
+            pr-1.5
+          "
+        >
+          <Avatar />
 
-        {/* Internal atmospheric light */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -right-12 -top-16 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-20 left-1/3 h-28 w-28 rounded-full bg-blue-600/10 blur-3xl"
-        />
-
-        {/* Header content */}
-        <div className="relative flex min-h-[74px] items-center px-3 py-2.5">
-          {/* Brand */}
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <BrandMark />
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-[15px] font-black uppercase tracking-[0.14em] text-white">
-                  Market
-                </h1>
-                <span className="text-[15px] font-black uppercase tracking-[0.14em] text-cyan-300">
-                  Flux
-                </span>
-              </div>
-
-              <p className="mt-0.5 text-[7px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-                Predict the next move
-              </p>
-            </div>
-          </div>
-
-          {/* Player metrics */}
-          <div className="flex shrink-0 items-center">
+          <div className="relative z-[3] flex items-center">
             <HeaderMetric
               icon={WalletCards}
               label="Balance"
-              value={`R${Number(balance).toFixed(2)}`}
+              value={`R ${Number(balance).toFixed(2)}`}
               valueClassName="text-white"
             />
             <MetricDivider />
@@ -107,42 +85,67 @@ function MarketFluxHeader({
             />
           </div>
         </div>
-
-        {/* Bottom HUD edge */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent"
-        />
       </div>
     </header>
   )
 }
 
 /**
- * Brand icon used by the Market Flux wordmark.
+ * Brand: flux wave glyph plus wordmark. No container, it floats on the scene.
  *
  * @returns {JSX.Element}
  */
-function BrandMark() {
+function Brand() {
   return (
-    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] border border-cyan-300/35 bg-slate-950/80 shadow-[0_0_18px_rgba(0,174,255,0.16)]">
-      {/* Outer angular frame */}
-      <div
+    <div className="flex min-w-0 items-center gap-1.5">
+      <svg
         aria-hidden="true"
-        className="absolute inset-[3px] rounded-[8px] border border-cyan-400/15"
-      />
+        viewBox="0 0 40 32"
+        className="h-7 w-9 shrink-0 drop-shadow-[0_0_8px_rgba(0,200,255,0.85)]"
+      >
+        <defs>
+          <linearGradient id="market-flux-wave" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#9af3ff" />
+            <stop offset="1" stopColor="#1e90ff" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M2 19 C7 6, 14 6, 19 16 S30 26, 38 9"
+          fill="none"
+          stroke="url(#market-flux-wave)"
+          strokeWidth="3.6"
+          strokeLinecap="round"
+        />
+        <path
+          d="M2 27 C8 17, 14 17, 19 24 S30 31, 38 19"
+          fill="none"
+          stroke="url(#market-flux-wave)"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+          opacity="0.6"
+        />
+      </svg>
 
-      {/* Flux symbol */}
-      <div className="relative flex items-center gap-[2px]">
-        <span className="block h-4 w-[3px] rotate-[24deg] rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
-        <span className="block h-5 w-[3px] -rotate-[24deg] rounded-full bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.9)]" />
-        <span className="block h-3 w-[3px] rotate-[24deg] rounded-full bg-cyan-200 shadow-[0_0_8px_rgba(103,232,249,0.9)]" />
-      </div>
+      <h1 className="truncate text-[13px] font-black uppercase italic tracking-[0.06em] drop-shadow-[0_0_6px_rgba(0,200,255,0.45)]">
+        <span className="text-white">Market</span>
+        <span className="text-cyan-300">-Flux</span>
+      </h1>
+    </div>
+  )
+}
 
-      {/* Corner accent */}
-      <span
+/**
+ * Player avatar badge shown at the start of the stats panel.
+ *
+ * @returns {JSX.Element}
+ */
+function Avatar() {
+  return (
+    <div className="relative z-[3] mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-300/40 bg-slate-950/60 shadow-[inset_0_0_8px_rgba(0,190,255,0.35)]">
+      <CircleUserRound
         aria-hidden="true"
-        className="absolute right-[3px] top-[3px] h-1 w-1 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(34,211,238,1)]"
+        className="h-[18px] w-[18px] text-cyan-200"
+        strokeWidth={1.75}
       />
     </div>
   )
@@ -165,20 +168,20 @@ function HeaderMetric({
   valueClassName = 'text-white',
 }) {
   return (
-    <div className="flex min-w-[52px] flex-col items-center justify-center px-1.5">
+    <div className="flex min-w-[50px] flex-col items-center justify-center px-1.5">
       <div className="mb-1 flex items-center gap-1">
         <Icon
           aria-hidden="true"
-          className="h-2.5 w-2.5 text-slate-500"
+          className="h-2.5 w-2.5 text-slate-400"
           strokeWidth={2}
         />
-        <span className="text-[6px] font-bold uppercase tracking-[0.16em] text-slate-500">
+        <span className="text-[6.5px] font-bold uppercase tracking-[0.14em] text-slate-400">
           {label}
         </span>
       </div>
 
       <span
-        className={`text-[11px] font-black leading-none tracking-tight ${valueClassName}`}
+        className={`text-[11.5px] font-black leading-none tracking-tight tabular-nums ${valueClassName}`}
       >
         {value}
       </span>
@@ -195,7 +198,7 @@ function MetricDivider() {
   return (
     <div
       aria-hidden="true"
-      className="h-7 w-px bg-gradient-to-b from-transparent via-cyan-300/20 to-transparent"
+      className="h-7 w-px bg-gradient-to-b from-transparent via-cyan-300/30 to-transparent"
     />
   )
 }

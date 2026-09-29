@@ -3,6 +3,14 @@
  *
  * @description
  * Shared visual effects used by the Market Flux HUD.
+ *
+ * - market-flux-glow    soft cyan outer glow
+ * - market-flux-glass   dark frosted panel (base HUD surface)
+ * - market-flux-liquid  liquid-glass surface: translucent body, refraction
+ *                       tints, specular sheen and inner rim light
+ * - market-flux-edge    shiny gradient border that slowly glints
+ *
+ * Use liquid + edge together on the same element and give it a border radius.
  */
 
 .market-flux-glow {
@@ -22,4 +30,111 @@
 
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+}
+
+/* ---------------------------------------------------------------------------
+ * Liquid glass
+ * ------------------------------------------------------------------------ */
+
+.market-flux-liquid {
+  position: relative;
+  isolation: isolate;
+
+  background:
+    /* cool refraction tint, top-left */
+    radial-gradient(
+      120% 150% at 10% 0%,
+      rgba(120, 220, 255, 0.24) 0%,
+      rgba(120, 220, 255, 0) 48%
+    ),
+    /* deep blue bloom, bottom-right */
+    radial-gradient(
+      90% 120% at 100% 100%,
+      rgba(0, 120, 255, 0.22) 0%,
+      rgba(0, 120, 255, 0) 55%
+    ),
+    /* body */
+    linear-gradient(180deg, rgba(14, 36, 58, 0.55) 0%, rgba(3, 12, 24, 0.74) 100%);
+
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+
+  box-shadow:
+    0 0 14px rgba(0, 190, 255, 0.24),
+    0 0 36px rgba(0, 120, 255, 0.14),
+    0 10px 24px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    inset 0 -1px 0 rgba(0, 200, 255, 0.32),
+    inset 0 0 22px rgba(0, 170, 255, 0.12);
+}
+
+/* Specular sheen across the upper part of the glass */
+.market-flux-liquid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(
+      115deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.04) 26%,
+      rgba(255, 255, 255, 0) 42%
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 38%);
+}
+
+/* ---------------------------------------------------------------------------
+ * Shiny edge
+ * ------------------------------------------------------------------------ */
+
+.market-flux-edge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  z-index: 2;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(90, 220, 255, 0.9) 16%,
+    rgba(0, 120, 255, 0.22) 42%,
+    rgba(0, 200, 255, 0.14) 60%,
+    rgba(120, 235, 255, 0.85) 82%,
+    rgba(255, 255, 255, 0.92) 100%
+  );
+  background-size: 220% 220%;
+  animation: market-flux-glint 9s ease-in-out infinite;
+
+  /* Punch out the middle so only the 1.5px ring remains */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+@keyframes market-flux-glint {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .market-flux-edge::before {
+    animation: none;
+  }
 }
