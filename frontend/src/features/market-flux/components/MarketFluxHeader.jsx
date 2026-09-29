@@ -4,11 +4,12 @@
  * @description
  * Mobile-first HUD header for Market Flux.
  *
- * Layout: free-floating brand on the left, one liquid-glass player panel on
- * the right (avatar, balance, rank, followers) with a shiny gradient edge.
+ * Layout: free-floating brand on the left, one clear liquid-glass player
+ * panel on the right (avatar, balance, rank, followers) with a shiny gradient
+ * edge. No backdrop colour: the scene shows through the panel.
  *
  * Depends on the shared classes in src/styles/effects.css:
- * market-flux-liquid and market-flux-edge.
+ * market-flux-liquid, market-flux-clear and market-flux-edge.
  *
  * No gameplay state is managed here.
  */
@@ -36,28 +37,23 @@ function MarketFluxHeader({
 }) {
   return (
     <header className="relative w-full px-3 pt-3">
-      {/* Atmospheric glow behind the HUD */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -inset-x-2 top-0 h-24 bg-[radial-gradient(ellipse_at_top_right,rgba(0,184,255,0.2),transparent_65%)] blur-xl"
-      />
-
       <div className="relative flex items-center justify-between gap-3">
         <Brand />
 
         <div
           className="
             market-flux-liquid
+            market-flux-clear
             market-flux-edge
             flex
             min-w-0
             shrink-0
             items-center
             gap-1
-            rounded-[16px]
-            py-2
-            pl-2.5
-            pr-1.5
+            rounded-[14px]
+            py-1.5
+            pl-2
+            pr-1
           "
         >
           <Avatar />
@@ -101,7 +97,7 @@ function Brand() {
       <svg
         aria-hidden="true"
         viewBox="0 0 40 32"
-        className="h-7 w-9 shrink-0 drop-shadow-[0_0_8px_rgba(0,200,255,0.85)]"
+        className="h-6 w-8 shrink-0 drop-shadow-[0_0_8px_rgba(0,200,255,0.85)]"
       >
         <defs>
           <linearGradient id="market-flux-wave" x1="0" y1="0" x2="1" y2="1">
@@ -126,7 +122,7 @@ function Brand() {
         />
       </svg>
 
-      <h1 className="truncate text-[13px] font-black uppercase italic tracking-[0.06em] drop-shadow-[0_0_6px_rgba(0,200,255,0.45)]">
+      <h1 className="truncate text-[11.5px] font-black uppercase italic tracking-[0.06em] drop-shadow-[0_0_6px_rgba(0,200,255,0.45)]">
         <span className="text-white">Market</span>
         <span className="text-cyan-300">-Flux</span>
       </h1>
@@ -141,10 +137,10 @@ function Brand() {
  */
 function Avatar() {
   return (
-    <div className="relative z-[3] mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-cyan-300/40 bg-slate-950/60 shadow-[inset_0_0_8px_rgba(0,190,255,0.35)]">
+    <div className="relative z-[3] mr-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-300/40 bg-slate-950/60 shadow-[inset_0_0_8px_rgba(0,190,255,0.35)]">
       <CircleUserRound
         aria-hidden="true"
-        className="h-[18px] w-[18px] text-cyan-200"
+        className="h-4 w-4 text-cyan-200"
         strokeWidth={1.75}
       />
     </div>
@@ -168,20 +164,20 @@ function HeaderMetric({
   valueClassName = 'text-white',
 }) {
   return (
-    <div className="flex min-w-[50px] flex-col items-center justify-center px-1.5">
-      <div className="mb-1 flex items-center gap-1">
+    <div className="flex min-w-[44px] flex-col items-center justify-center px-1">
+      <div className="mb-0.5 flex items-center gap-0.5">
         <Icon
           aria-hidden="true"
-          className="h-2.5 w-2.5 text-slate-400"
+          className="h-2 w-2 text-slate-200"
           strokeWidth={2}
         />
-        <span className="text-[6.5px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        <span className="text-[5.5px] font-bold uppercase tracking-[0.12em] text-slate-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
           {label}
         </span>
       </div>
 
       <span
-        className={`text-[11.5px] font-black leading-none tracking-tight tabular-nums ${valueClassName}`}
+        className={`text-[9.5px] font-black leading-none tracking-tight tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] ${valueClassName}`}
       >
         {value}
       </span>
@@ -198,7 +194,7 @@ function MetricDivider() {
   return (
     <div
       aria-hidden="true"
-      className="h-7 w-px bg-gradient-to-b from-transparent via-cyan-300/30 to-transparent"
+      className="h-6 w-px bg-gradient-to-b from-transparent via-cyan-300/30 to-transparent"
     />
   )
 }
