@@ -1,19 +1,20 @@
-import AppShell from './AppShell'
-
-import MarketFluxHeader from '../features/market-flux/components/MarketFluxHeader'
-import MarketSelector from '../features/market-flux/components/MarketSelector'
-
 /**
+ * @file src/app/App.jsx
+ *
+ * @description
  * Root application component for Market Flux.
  *
- * @returns {JSX.Element}
+ * The application shell provides the global layout while
+ * MarketFlux owns the complete game experience.
  */
+
+import AppShell from './AppShell'
+import MarketFlux from '../features/market-flux/MarketFlux'
+
 function App() {
   return (
     <AppShell>
-      <MarketFluxHeader />
-
-      <MarketSelector />
+      <MarketFlux />
     </AppShell>
   )
 }
