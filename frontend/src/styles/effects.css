@@ -8,6 +8,8 @@
  * - market-flux-glass   dark frosted panel (base HUD surface)
  * - market-flux-liquid  liquid-glass surface: translucent body, refraction
  *                       tints, specular sheen and inner rim light
+ * - market-flux-clear   modifier for liquid: fully see-through, no tint, so the
+ *                       scene behind shows in its own colours
  * - market-flux-edge    shiny gradient border that slowly glints
  *
  * Use liquid + edge together on the same element and give it a border radius.
@@ -66,6 +68,26 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
     inset 0 -1px 0 rgba(0, 200, 255, 0.32),
     inset 0 0 22px rgba(0, 170, 255, 0.12);
+}
+
+/* Clear variant: the background artwork shows through untinted.
+ * Must stay after .market-flux-liquid so it overrides it. */
+.market-flux-clear {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.02) 45%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+
+  backdrop-filter: blur(3px) saturate(1.5) brightness(1.08);
+  -webkit-backdrop-filter: blur(3px) saturate(1.5) brightness(1.08);
+
+  box-shadow:
+    0 0 12px rgba(0, 190, 255, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 200, 255, 0.35),
+    inset 0 0 16px rgba(255, 255, 255, 0.05);
 }
 
 /* Specular sheen across the upper part of the glass */
