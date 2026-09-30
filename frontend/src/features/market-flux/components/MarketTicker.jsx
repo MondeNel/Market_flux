@@ -87,7 +87,7 @@ function MarketTicker({
             border
             border-cyan-300/60
             bg-[linear-gradient(180deg,rgba(0,8,20,0.85)_0%,rgba(6,40,78,0.6)_30%,rgba(20,90,150,0.5)_50%,rgba(6,40,78,0.6)_70%,rgba(0,8,20,0.85)_100%)]
-            px-3.5
+            px-2.5
             shadow-[inset_0_0_18px_rgba(0,200,255,0.3),0_0_14px_rgba(0,210,255,0.4)]
           "
         >
