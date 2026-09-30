@@ -2,193 +2,131 @@
  * @file src/features/market-flux/components/MarketTicker.jsx
  *
  * @description
- * Market row: asset selector, odometer-style live price and LIVE badge.
- * Presentational only; the price comes from the simulation hook.
+ * Market row: symbol picker on the left, spinning odometer price in the
+ * middle (amber end caps, cylinder shading), LIVE badge on the right.
+ *
+ * The frame is clear liquid glass so the background artwork shows through.
+ * Presentational only; all state comes from the simulation hook.
  */
 
-import { ChevronDown } from 'lucide-react'
+import { Activity } from 'lucide-react'
+
+import MarketNumberSpinner from './MarketNumberSpinner'
+import MarketSelector from './MarketSelector'
 
 /**
  * @param {object} props
- * @param {number} props.price Current market price.
+ * @param {object} props.market Selected market.
+ * @param {object[]} props.markets All markets.
+ * @param {number} props.price Current price.
  * @param {'up'|'down'} props.direction Direction of the last tick.
- * @param {boolean} props.isRoundLive Whether a round is running (tints digits).
+ * @param {boolean} props.isRoundLive Whether a round is running.
+ * @param {boolean} props.canSelect Whether the market can be changed now.
+ * @param {(marketId: string) => void} props.onSelect
  * @returns {JSX.Element}
  */
-function MarketTicker({ price, direction, isRoundLive }) {
+function MarketTicker({
+  market,
+  markets,
+  price,
+  direction,
+  isRoundLive,
+  canSelect,
+  onSelect,
+}) {
+  const tone = isRoundLive ? direction : 'idle'
+
   return (
-    <section aria-label="Market" className="px-3 pt-3">
+    // z-30 keeps the open picker above the play area beneath it.
+    <section aria-label="Market" className="relative z-30 px-3">
       <div
         className="
-          market-flux-glass
           relative
           flex
           items-center
           gap-2
-          overflow-hidden
-          rounded-[16px]
+          rounded-[18px]
           border
-          border-cyan-400/30
+          border-cyan-300/45
+          bg-white/[0.025]
           p-2
+          shadow-[0_0_14px_rgba(0,190,255,0.28),inset_0_1px_0_rgba(255,255,255,0.35),inset_0_0_18px_rgba(0,190,255,0.08)]
+          backdrop-blur-[4px]
         "
       >
-        <AssetSelect />
-        <Odometer
-          price={price}
-          direction={direction}
-          isRoundLive={isRoundLive}
+        {/* Top glass highlight */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent"
         />
+
+        <div className="flex shrink-0 flex-col gap-1">
+          <span className="pl-1 text-[7px] font-bold uppercase tracking-[0.22em] text-cyan-200/75">
+            Market
+          </span>
+          <MarketSelector
+            markets={markets}
+            selected={market}
+            onSelect={onSelect}
+            disabled={!canSelect}
+          />
+        </div>
+
+        {/* Odometer */}
+        <div
+          className="
+            relative
+            flex
+            min-w-0
+            flex-1
+            items-center
+            justify-center
+            rounded-[14px]
+            border
+            border-cyan-300/40
+            bg-[linear-gradient(180deg,rgba(2,12,26,0.5),rgba(3,24,44,0.4))]
+            px-3
+            py-1.5
+            shadow-[inset_0_0_16px_rgba(0,170,255,0.25),0_0_12px_rgba(0,190,255,0.22)]
+          "
+        >
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-2 right-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+          />
+
+          <MarketNumberSpinner
+            value={price}
+            decimals={market.decimals}
+            tone={tone}
+          />
+        </div>
+
         <LiveBadge />
       </div>
     </section>
   )
 }
 
-function AssetSelect() {
+function LiveBadge() {
   return (
-    <button
-      type="button"
-      className="
-        flex
-        shrink-0
-        items-center
-        gap-1.5
-        rounded-[10px]
-        border
-        border-cyan-300/25
-        bg-slate-950/70
-        py-1.5
-        pl-1.5
-        pr-1
-        text-left
-      "
-    >
-      <span
-        aria-hidden="true"
-        className="
-          grid
-          h-6
-          w-6
-          shrink-0
-          place-items-center
-          rounded-full
-          bg-orange-500
-          text-[13px]
-          font-black
-          text-white
-        "
-      >
-        ₿
+    <div className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/40 px-1.5 py-1">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 motion-reduce:animate-none" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
       </span>
-
-      <span className="leading-tight">
-        <span className="block text-[10px] font-bold text-white">Bitcoin</span>
-        <span className="block text-[7px] font-semibold text-slate-400">
-          (BTC/USDT)
-        </span>
+      <span className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-300">
+        Live
       </span>
-
-      <ChevronDown
+      <Activity
         aria-hidden="true"
         className="h-3 w-3 text-cyan-300"
         strokeWidth={2.5}
       />
-    </button>
-  )
-}
-
-function Odometer({ price, direction, isRoundLive }) {
-  const formatted = price.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-
-  let tone = 'text-cyan-50'
-  if (isRoundLive) {
-    tone = direction === 'up' ? 'text-emerald-300' : 'text-rose-300'
-  }
-
-  return (
-    <div
-      role="img"
-      aria-label={`Bitcoin price ${formatted}`}
-      className="
-        flex
-        min-w-0
-        flex-1
-        items-center
-        justify-center
-        gap-[2px]
-        rounded-[10px]
-        border
-        border-cyan-300/30
-        bg-slate-950/80
-        px-1.5
-        py-1
-        shadow-[inset_0_0_14px_rgba(0,174,255,0.18)]
-      "
-    >
-      {formatted.split('').map((char, index) => {
-        const isDigit = /\d/.test(char)
-
-        if (!isDigit) {
-          return (
-            <span
-              key={index}
-              aria-hidden="true"
-              className="w-[5px] pt-3 text-center text-[14px] font-black text-cyan-300"
-            >
-              {char}
-            </span>
-          )
-        }
-
-        return (
-          <span
-            key={index}
-            aria-hidden="true"
-            className={`
-              relative
-              grid
-              h-8
-              w-[18px]
-              place-items-center
-              rounded-[4px]
-              border
-              border-cyan-400/25
-              bg-gradient-to-b
-              from-slate-800
-              to-slate-950
-              text-[21px]
-              font-black
-              tabular-nums
-              transition-colors
-              duration-200
-              ${tone}
-            `}
-          >
-            {char}
-            {/* Split-flap seam */}
-            <span className="absolute inset-x-0 top-1/2 h-px bg-black/60" />
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-function LiveBadge() {
-  return (
-    <div className="flex shrink-0 flex-col items-center gap-1 px-1">
-      <span className="flex items-center gap-1">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 motion-reduce:animate-none" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-        </span>
-        <span className="text-[8px] font-black uppercase tracking-[0.16em] text-emerald-300">
-          Live
-        </span>
-      </span>
     </div>
   )
 }
