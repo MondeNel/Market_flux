@@ -82,10 +82,12 @@ function MarketSelector({ markets, selected, onSelect, disabled }) {
     options[(current + step + options.length) % options.length]?.focus()
   }
 
-  const choose = (marketId) => {
+  const choose = (marketId, event) => {
     onSelect(marketId)
     setOpen(false)
-    triggerRef.current?.focus()
+    // Keyboard users keep their place; after a mouse or touch pick the focus
+    // ring would just linger around the pill.
+    if (event.detail === 0) triggerRef.current?.focus()
   }
 
   return (
@@ -171,7 +173,7 @@ function MarketSelector({ markets, selected, onSelect, disabled }) {
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                onClick={() => choose(market.id)}
+                onClick={(event) => choose(market.id, event)}
                 className={`
                   flex
                   w-full
