@@ -28,9 +28,13 @@ function MarketFlux() {
       <MarketFluxHeader balance={game.balance} />
 
       <MarketTicker
+        market={game.market}
+        markets={game.markets}
         price={game.price}
         direction={game.direction}
         isRoundLive={game.phase === 'live'}
+        canSelect={game.canSelectMarket}
+        onSelect={game.selectMarket}
       />
 
       {/* Play area: bonus above the ladder, slim panels either side */}
