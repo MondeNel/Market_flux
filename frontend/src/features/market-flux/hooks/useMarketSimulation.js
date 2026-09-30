@@ -19,6 +19,8 @@
 
 import { useCallback, useEffect, useReducer } from 'react'
 
+import { DEFAULT_MARKET_ID, MARKETS, MARKETS_BY_ID } from '../data/markets'
+
 export const MULTIPLIERS = [1, 2, 4, 6, 8, 10]
 export const TOP_STEP = MULTIPLIERS.length - 1
 export const TOTAL_ROUNDS = 30
@@ -32,13 +34,14 @@ export const ROUND_MS = 4000
 const RESULT_MS = 1800
 const TICK_MS = 200
 
-const START_PRICE = 86538.74
+const DEFAULT_MARKET = MARKETS_BY_ID[DEFAULT_MARKET_ID]
 const START_BALANCE = 124.5
 const START_STAKE = 10
 
 const initialState = {
-  price: START_PRICE,
-  startPrice: START_PRICE,
+  marketId: DEFAULT_MARKET_ID,
+  price: DEFAULT_MARKET.startPrice,
+  startPrice: DEFAULT_MARKET.startPrice,
   direction: 'up',
   changePct: 0,
   balance: START_BALANCE,
@@ -64,8 +67,10 @@ function clampStake(stake, balance) {
 function reducer(state, action) {
   switch (action.type) {
     case 'TICK': {
-      const price = state.price * (1 + action.delta)
-      const direction = action.delta >= 0 ? 'up' : 'down'
+      // action.unit is noise in [-1, 1]; the market sets how far it can move.
+      const { volatility } = MARKETS_BY_ID[state.marketId]
+      const price = state.price * (1 + action.unit * volatility)
+      const direction = action.unit >= 0 ? 'up' : 'down'
 
       if (state.phase !== 'live') {
         return { ...state, price, direction }
@@ -151,8 +156,29 @@ function reducer(state, action) {
       }
     }
 
+    case 'SELECT_MARKET': {
+      // Only between rounds, and only to a known market.
+      const market = MARKETS_BY_ID[action.marketId]
+      if (state.phase !== 'idle' || !market || market.id === state.marketId) {
+        return state
+      }
+      return {
+        ...state,
+        marketId: market.id,
+        price: market.startPrice,
+        startPrice: market.startPrice,
+        direction: 'up',
+        changePct: 0,
+      }
+    }
+
     case 'RESET':
-      return { ...initialState, price: state.price, startPrice: state.price }
+      return {
+        ...initialState,
+        marketId: state.marketId,
+        price: state.price,
+        startPrice: state.price,
+      }
 
     default:
       return state
@@ -163,7 +189,7 @@ function reducer(state, action) {
  * Market Flux simulation hook.
  *
  * @returns {object} Game state plus actions: predict, increaseStake,
- * decreaseStake, reset.
+ * decreaseStake, selectMarket, reset.
  */
 export function useMarketSimulation() {
   const [state, dispatch] = useReducer(reducer, initialState)
@@ -171,7 +197,7 @@ export function useMarketSimulation() {
   // Continuous market ticker.
   useEffect(() => {
     const id = setInterval(() => {
-      dispatch({ type: 'TICK', delta: (Math.random() - 0.5) * 0.0016 })
+      dispatch({ type: 'TICK', unit: Math.random() * 2 - 1 })
     }, TICK_MS)
     return () => clearInterval(id)
   }, [])
@@ -196,12 +222,19 @@ export function useMarketSimulation() {
     [],
   )
   const reset = useCallback(() => dispatch({ type: 'RESET' }), [])
+  const selectMarket = useCallback(
+    (marketId) => dispatch({ type: 'SELECT_MARKET', marketId }),
+    [],
+  )
 
   const isIdle = state.phase === 'idle'
   const isBroke = isIdle && state.balance < MIN_STAKE
 
   return {
     ...state,
+    market: MARKETS_BY_ID[state.marketId],
+    markets: MARKETS,
+    canSelectMarket: isIdle,
     isBroke,
     canPredict: isIdle && !isBroke && state.balance >= state.stake,
     canDecrease: isIdle && state.stake > MIN_STAKE,
@@ -211,5 +244,6 @@ export function useMarketSimulation() {
     increaseStake,
     decreaseStake,
     reset,
+    selectMarket,
   }
 }
