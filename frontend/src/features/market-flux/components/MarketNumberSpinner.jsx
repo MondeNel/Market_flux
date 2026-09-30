@@ -7,7 +7,7 @@
  * and below and fading out at the edges. The drums have no boxes of their own:
  * the parent supplies one continuous cylinder, like the reference.
  *
- * The roll (160ms) is shorter than the tick (200ms), so each digit settles
+ * The roll (260ms) is shorter than the 500ms price tick, so each digit settles
  * before the next update instead of staying permanently mid-roll.
  *
  * Presentational only: the price and decimals come from the simulation.
@@ -18,9 +18,9 @@ const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 const CELL_HEIGHT = 28 // px: height of one digit on the drum
 const WINDOW_HEIGHT = 52 // px: visible window; the digits above/below peek in as faint ghosts
 
-// Ghost digits stay at most ~30% visible; the centre digit is fully lit.
+// Ghost digits stay at most ~16% visible; the centre digit is fully lit.
 const FADE_MASK =
-  'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 16%, #000 34%, #000 66%, rgba(0,0,0,0.3) 84%, transparent 100%)'
+  'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.16) 14%, #000 36%, #000 64%, rgba(0,0,0,0.16) 86%, transparent 100%)'
 
 const TONES = {
   idle: 'text-sky-100 [text-shadow:0_0_8px_rgba(120,220,255,0.85)]',
@@ -59,7 +59,7 @@ function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
           <span
             key={`s${fromRight}`}
             aria-hidden="true"
-            className="w-[8px] self-end pb-[13px] text-center text-[24px] font-black leading-none text-sky-100 [text-shadow:0_0_8px_rgba(120,220,255,0.85)]"
+            className="w-[clamp(6px,2.2vw,10px)] self-end pb-[13px] text-center text-[clamp(20px,6.2vw,24px)] font-black leading-none text-sky-100 [text-shadow:0_0_8px_rgba(120,220,255,0.85)]"
           >
             {char}
           </span>
@@ -76,21 +76,21 @@ function Drum({ digit, toneClass }) {
     <span
       aria-hidden="true"
       style={{ height: WINDOW_HEIGHT }}
-      className="relative block w-[19px] overflow-hidden border-l border-cyan-200/10 first:border-l-0"
+      className="relative block w-[clamp(15px,4.8vw,19px)] overflow-hidden border-l border-cyan-200/10 first:border-l-0"
     >
       <span
         className="absolute inset-0"
         style={{ maskImage: FADE_MASK, WebkitMaskImage: FADE_MASK }}
       >
         <span
-          className="block transition-transform duration-[160ms] ease-out will-change-transform motion-reduce:transition-none"
+          className="block transition-transform duration-[260ms] ease-out will-change-transform motion-reduce:transition-none"
           style={{ transform: `translateY(${offset}px)` }}
         >
           {DIGITS.map((d) => (
             <span
               key={d}
               style={{ height: CELL_HEIGHT }}
-              className={`grid place-items-center text-[26px] font-black tabular-nums ${toneClass}`}
+              className={`grid place-items-center pb-[2px] text-[clamp(21px,6.6vw,26px)] font-black leading-none tabular-nums ${toneClass}`}
             >
               {d}
             </span>
