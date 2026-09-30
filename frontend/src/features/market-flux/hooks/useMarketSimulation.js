@@ -32,7 +32,7 @@ export const STAKE_STEP = 5
 
 export const ROUND_MS = 4000
 const RESULT_MS = 1800
-const TICK_MS = 200
+const TICK_MS = 500
 
 const DEFAULT_MARKET = MARKETS_BY_ID[DEFAULT_MARKET_ID]
 const START_BALANCE = 124.5
