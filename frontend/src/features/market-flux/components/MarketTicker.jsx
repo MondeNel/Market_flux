@@ -72,31 +72,43 @@ function MarketTicker({
           />
         </div>
 
-        {/* Odometer */}
+        {/* Odometer: one continuous cylinder with amber end caps */}
         <div
           className="
             relative
             flex
+            h-[54px]
             min-w-0
             flex-1
             items-center
             justify-center
+            overflow-hidden
             rounded-[14px]
             border
-            border-cyan-300/40
-            bg-[linear-gradient(180deg,rgba(2,12,26,0.5),rgba(3,24,44,0.4))]
-            px-3
-            py-1.5
-            shadow-[inset_0_0_16px_rgba(0,170,255,0.25),0_0_12px_rgba(0,190,255,0.22)]
+            border-cyan-300/60
+            bg-[linear-gradient(180deg,rgba(0,8,20,0.85)_0%,rgba(6,40,78,0.6)_30%,rgba(20,90,150,0.5)_50%,rgba(6,40,78,0.6)_70%,rgba(0,8,20,0.85)_100%)]
+            px-3.5
+            shadow-[inset_0_0_18px_rgba(0,200,255,0.3),0_0_14px_rgba(0,210,255,0.4)]
           "
         >
+          {/* Rim light along the top and bottom of the cylinder */}
           <span
             aria-hidden="true"
-            className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+            className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200 to-transparent"
           />
           <span
             aria-hidden="true"
-            className="absolute inset-y-2 right-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+            className="absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent"
+          />
+
+          {/* Amber end caps */}
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-2 right-0 w-[3px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
           />
 
           <MarketNumberSpinner
