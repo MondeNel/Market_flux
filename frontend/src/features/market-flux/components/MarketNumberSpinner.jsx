@@ -14,6 +14,9 @@
  *   its duration is fixed by its position, which guarantees the order.
  * - A speed-based blur hides the strobing while it is fast.
  * - The neighbouring digits show as faint ghosts above and below.
+ * - The drums share the full width of the cylinder equally, and each digit
+ *   scales with its drum (container query units), so the number fills the
+ *   space whether it has 5 digits or 8.
  * - Drums are animated by writing transforms straight to the DOM in a
  *   requestAnimationFrame loop, so nothing re-renders per frame.
  *
@@ -23,7 +26,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-const CELL_HEIGHT = 28 // px: height of one digit on the drum
+const CELL_HEIGHT = 30 // px: height of one digit on the drum
 const WINDOW_HEIGHT = 52 // px: visible window; neighbours peek in as ghosts
 const DRUM_OFFSET = (WINDOW_HEIGHT - CELL_HEIGHT) / 2
 
@@ -79,7 +82,7 @@ function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
     <div
       role="img"
       aria-label={`Price ${formatted}`}
-      className="flex items-center justify-center"
+      className="flex w-full items-center justify-center"
     >
       {chars.map((char, index) => {
         // Key from the right so each digit keeps its drum when the number
@@ -91,7 +94,7 @@ function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
             <span
               key={`s${fromRight}`}
               aria-hidden="true"
-              className="w-[clamp(6px,2.2vw,10px)] self-end pb-[13px] text-center text-[clamp(20px,6.2vw,24px)] font-black leading-none text-sky-100 [text-shadow:0_0_8px_rgba(120,220,255,0.85)]"
+              className="w-[9px] shrink-0 self-end pb-[13px] text-center text-[clamp(20px,6.2vw,26px)] font-black leading-none text-sky-100 [text-shadow:0_0_8px_rgba(120,220,255,0.85)]"
             >
               {char}
             </span>
@@ -193,7 +196,7 @@ function Drum({ digit, order, epoch, toneClass }) {
     <span
       aria-hidden="true"
       style={{ height: WINDOW_HEIGHT }}
-      className="relative block w-[clamp(15px,4.8vw,19px)] overflow-hidden border-l border-cyan-200/10 first:border-l-0"
+      className="relative block min-w-0 flex-1 overflow-hidden border-l border-cyan-200/10 [container-type:inline-size] first:border-l-0"
     >
       <span
         className="absolute inset-0"
@@ -204,7 +207,7 @@ function Drum({ digit, order, epoch, toneClass }) {
             <span
               key={i}
               style={{ height: CELL_HEIGHT }}
-              className={`grid place-items-center pb-[2px] text-[clamp(21px,6.6vw,26px)] font-black leading-none tabular-nums ${toneClass}`}
+              className={`grid place-items-center pb-[2px] text-[clamp(20px,105cqw,30px)] font-black leading-none tabular-nums ${toneClass}`}
             >
               {d}
             </span>
