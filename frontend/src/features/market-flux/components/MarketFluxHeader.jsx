@@ -219,7 +219,7 @@ function Brand() {
           className="
             min-w-0
             truncate
-            text-[clamp(12px,3.8vw,15px)]
+            text-[clamp(10px,3vw,12.5px)]
             font-black
             uppercase
             italic
@@ -327,6 +327,9 @@ function BrandGlyph() {
  * The environment remains visible through the HUD while the
  * illuminated perimeter creates the glass effect.
  *
+ * The outline fades out toward the pointed left end, so the two diagonal
+ * edges dissolve into the scene instead of meeting in a bright hard point.
+ *
  * @param {object} props
  * @param {number|string} props.balance
  * @param {number|string} props.rank
@@ -360,36 +363,45 @@ function PlayerPanel({ balance, rank, followers }) {
         "
       >
         <defs>
+          {/*
+           * Horizontal gradient: fully transparent at the left tip, fading up
+           * to the bright edge by about 16% of the width.
+           */}
           <linearGradient
             id="market-flux-player-edge"
             x1="0"
             y1="0"
             x2="190"
-            y2="38"
+            y2="0"
             gradientUnits="userSpaceOnUse"
           >
             <stop
               offset="0"
               stopColor="#d2faff"
-              stopOpacity="0.98"
+              stopOpacity="0"
             />
             <stop
-              offset="0.1"
+              offset="0.07"
               stopColor="#41d5ff"
-              stopOpacity="0.82"
+              stopOpacity="0.18"
             />
             <stop
-              offset="0.42"
+              offset="0.17"
+              stopColor="#41d5ff"
+              stopOpacity="0.78"
+            />
+            <stop
+              offset="0.45"
               stopColor="#0aa8ef"
-              stopOpacity="0.46"
+              stopOpacity="0.48"
             />
             <stop
-              offset="0.72"
+              offset="0.75"
               stopColor="#22bfff"
-              stopOpacity="0.62"
+              stopOpacity="0.64"
             />
             <stop
-              offset="0.9"
+              offset="0.92"
               stopColor="#9af0ff"
               stopOpacity="0.9"
             />
@@ -435,7 +447,7 @@ function PlayerPanel({ balance, rank, followers }) {
           </linearGradient>
         </defs>
 
-        {/* Main HUD outline. No fill. */}
+        {/* Main HUD outline. No fill. Fades out at the left point. */}
         <path
           d="
             M13 1
@@ -451,31 +463,6 @@ function PlayerPanel({ balance, rank, followers }) {
           stroke="url(#market-flux-player-edge)"
           strokeWidth="1.2"
           strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* The defining sharp junction from the reference. */}
-        <path
-          d="
-            M13 2
-            L3.5 19
-            L13 36
-          "
-          fill="none"
-          stroke="rgba(210,250,255,0.82)"
-          strokeWidth="0.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* Bright edge immediately around the point. */}
-        <path
-          d="M3.5 19 L12.5 2"
-          fill="none"
-          stroke="rgba(119,232,255,0.68)"
-          strokeWidth="0.65"
-          strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
 
