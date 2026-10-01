@@ -4,23 +4,25 @@
  * @description
  * Slot-machine price display.
  *
- * Whenever the price changes, every digit drum starts spinning at once and
- * then settles, one after another from left to right, each landing on its
- * digit of the new price, so the number is revealed in reading order.
+ * Modelled on a mechanical slot machine. When the price changes, every reel
+ * is kicked into a steady spin (the "governor" holds the speed constant), then
+ * the reels are stopped one after another from left to right, like the pawls
+ * dropping into each index disk: a short, firm brake, a tiny clunk as the reel
+ * settles into its notch, and the next reel a split second behind.
  *
  * - Each drum is a vertical strip of 0 to 9 (three copies, so it can wrap).
- * - A drum runs one continuous ease-out: fast at the start, slowing into its
- *   digit. The travel distance is chosen so it lands exactly on the digit, and
- *   its duration is fixed by its position, which guarantees the order.
+ * - Timeline per drum: quick ramp up, constant-speed spin, brake, settle.
+ * - Brake start and finish times depend only on the drum's position, never on
+ *   its digit, so the stop order is always left to right. The spin speed is
+ *   nudged slightly per drum so it lands exactly on its digit at that time.
  * - A speed-based blur hides the strobing while it is fast.
  * - The neighbouring digits show as faint ghosts above and below.
  * - The drums share the full width of the cylinder equally, and each digit
- *   scales with its drum (container query units), so the number fills the
- *   space whether it has 5 digits or 8.
+ *   scales with its drum (container query units).
  * - Drums are animated by writing transforms straight to the DOM in a
  *   requestAnimationFrame loop, so nothing re-renders per frame.
  *
- * Tune the feel with FIRST_STOP_MS and STAGGER_MS below. Users who prefer reduced motion
+ * Tune the feel with the constants below. Users who prefer reduced motion
  * see the new price immediately, with no spin.
  */
 
@@ -30,14 +32,14 @@ const CELL_HEIGHT = 30 // px: height of one digit on the drum
 const WINDOW_HEIGHT = 52 // px: visible window; neighbours peek in as ghosts
 const DRUM_OFFSET = (WINDOW_HEIGHT - CELL_HEIGHT) / 2
 
-// Every drum finishes at a fixed time: the first digit at FIRST_STOP_MS, and
-// each one after it STAGGER_MS later. Finish times never depend on which digit
-// a drum has to land on, so the order is always left to right.
-const FIRST_STOP_MS = 700
-const STAGGER_MS = 160
-
-const TRAVEL_PER_SECOND = 15 // roughly how many cells a drum covers per second of spin
-const MIN_TRAVEL = 4 // never a tiny nudge: every drum visibly spins
+// Timeline, in milliseconds from the moment the price changes.
+const SPIN_SPEED = 20 // cells per second while spinning (the governed speed)
+const RAMP_MS = 200 // kick from rest up to full speed
+const FIRST_SPIN_MS = 1000 // when the first (leftmost) reel's brake engages
+const STAGGER_MS = 240 // each reel's brake engages this much later than the last
+const BRAKE_MS = 260 // pawl drops: firm slow-down into the notch
+const SETTLE_MS = 160 // tiny clunk as the reel seats
+const OVERSHOOT = 0.3 // cells the reel rocks past its notch during the clunk
 
 // Ghost digits stay at most ~16% visible; the centre digit is fully lit.
 const FADE_MASK =
@@ -139,7 +141,7 @@ function Drum({ digit, order, epoch, toneClass }) {
       const cell = mod10(position)
       strip.style.transform = `translateY(${DRUM_OFFSET - (cell + 10) * CELL_HEIGHT}px)`
 
-      const blur = speed > 6 ? Math.min(3.2, speed / 14).toFixed(1) : ''
+      const blur = speed > 5 ? Math.min(2.4, speed / 10).toFixed(1) : ''
       if (blur !== lastBlur) {
         strip.style.filter = blur ? `blur(${blur}px)` : 'none'
         lastBlur = blur
@@ -159,32 +161,57 @@ function Drum({ digit, order, epoch, toneClass }) {
 
     const startPosition = positionRef.current
     const startTime = performance.now()
-    const durationMs = FIRST_STOP_MS + order * STAGGER_MS
 
-    // Distance to travel: lands exactly on `digit` (a whole number of cells
-    // past the start, plus the gap to the digit), and grows with the duration
-    // so later drums spin at a similar pace to the first.
+    const ramp = RAMP_MS / 1000
+    const spinSeconds = (FIRST_SPIN_MS + order * STAGGER_MS) / 1000 // brake engages
+    const brake = BRAKE_MS / 1000
+    const settle = SETTLE_MS / 1000
+
+    // Plan the distance. At speed v the reel covers v * (spin - ramp/2) while
+    // spinning (the ramp covers half distance) plus v * brake / 3 while braking
+    // (cubic ease-out). Pick whole turns so the total lands exactly on the
+    // digit, then derive the speed that makes it fit this drum's fixed timeline.
+    const effectiveSeconds = spinSeconds - ramp / 2 + brake / 3
     const ahead = mod10(digit - startPosition)
-    const wanted = (TRAVEL_PER_SECOND * durationMs) / 1000
-    const wholeTurns = Math.max(0, Math.round((wanted - ahead) / 10))
-    let travel = ahead + 10 * wholeTurns
-    if (travel < MIN_TRAVEL) travel += 10
+    const wholeTurns = Math.max(
+      0,
+      Math.round((SPIN_SPEED * effectiveSeconds - ahead) / 10),
+    )
+    const travel = ahead + 10 * wholeTurns
+    const speed = travel / effectiveSeconds // cells per second for this drum
+    const spinEndPosition = speed * (spinSeconds - ramp / 2)
+    const brakeDistance = (speed * brake) / 3
 
     let frameId = 0
     const frame = (now) => {
-      const progress = Math.min(1, Math.max(0, (now - startTime) / durationMs))
-      const eased = 1 - (1 - progress) ** 3 // ease-out cubic
-      const position = startPosition + travel * eased
+      const t = Math.max(0, (now - startTime) / 1000)
 
-      if (progress >= 1) {
+      let offset // cells travelled so far
+      let currentSpeed
+
+      if (t < ramp) {
+        offset = (speed * t * t) / (2 * ramp)
+        currentSpeed = (speed * t) / ramp
+      } else if (t < spinSeconds) {
+        offset = speed * (t - ramp / 2)
+        currentSpeed = speed
+      } else if (t < spinSeconds + brake) {
+        const u = (t - spinSeconds) / brake
+        offset = spinEndPosition + brakeDistance * (1 - (1 - u) ** 3)
+        currentSpeed = speed * (1 - u) ** 2
+      } else if (t < spinSeconds + brake + settle) {
+        const u = (t - spinSeconds - brake) / settle
+        offset = travel + OVERSHOOT * Math.sin(Math.PI * u) * (1 - u)
+        currentSpeed = 0
+      } else {
         positionRef.current = digit
         draw(digit, 0)
         return
       }
 
+      const position = startPosition + offset
       positionRef.current = mod10(position)
-      // Speed in cells per second: the derivative of the easing curve.
-      draw(position, ((3 * travel) / (durationMs / 1000)) * (1 - progress) ** 2)
+      draw(position, currentSpeed)
       frameId = requestAnimationFrame(frame)
     }
 
