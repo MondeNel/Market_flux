@@ -16,6 +16,9 @@
  *   its digit, so the stop order is always left to right. The spin speed is
  *   nudged slightly per drum so it lands exactly on its digit at that time.
  * - A speed-based blur hides the strobing while it is fast.
+ * - Near-miss tease (`tease` prop): the last reel spins a little longer, brakes
+ *   one digit short of the real price, hesitates, then creeps into place. It
+ *   always lands on the true digit; only the timing changes.
  * - The neighbouring digits show as faint ghosts above and below.
  * - The drums share the full width of the cylinder equally, and each digit
  *   scales with its drum (container query units).
@@ -41,6 +44,13 @@ const BRAKE_MS = 260 // pawl drops: firm slow-down into the notch
 const SETTLE_MS = 160 // tiny clunk as the reel seats
 const OVERSHOOT = 0.3 // cells the reel rocks past its notch during the clunk
 
+// Near-miss tease on the last reel. Together these add 650ms; the game allows
+// 700ms (NEAR_MISS_EXTRA_MS in useMarketSimulation.js), so keep the sum below it.
+const TEASE_EXTRA_SPIN_MS = 250 // spins longer before braking
+const TEASE_HOLD_MS = 150 // sits one digit short
+const TEASE_CREEP_MS = 250 // then eases forward into the true digit
+const TEASE_CREEP_CELLS = 1
+
 // Ghost digits stay at most ~16% visible; the centre digit is fully lit.
 const FADE_MASK =
   'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.16) 14%, #000 36%, #000 64%, rgba(0,0,0,0.16) 86%, transparent 100%)'
@@ -61,9 +71,10 @@ const mod10 = (n) => ((n % 10) + 10) % 10
  * @param {number} props.value Price to display.
  * @param {number} props.decimals Digits after the decimal point.
  * @param {'idle'|'up'|'down'} [props.tone='idle'] Digit colour.
+ * @param {boolean} [props.tease=false] Tease the last reel on this reveal.
  * @returns {JSX.Element}
  */
-function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
+function MarketNumberSpinner({ value, decimals, tone = 'idle', tease = false }) {
   const formatted = value.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -78,6 +89,7 @@ function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
   }
 
   const chars = formatted.split('')
+  const digitCount = chars.filter((char) => /\d/.test(char)).length
   let digitIndex = -1
 
   return (
@@ -109,6 +121,8 @@ function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
             key={`d${fromRight}`}
             digit={Number(char)}
             order={digitIndex}
+            isLast={digitIndex === digitCount - 1}
+            tease={tease}
             epoch={epoch}
             toneClass={TONES[tone]}
           />
@@ -124,13 +138,23 @@ function MarketNumberSpinner({ value, decimals, tone = 'idle' }) {
  * @param {object} props
  * @param {number} props.digit Digit to land on.
  * @param {number} props.order Position among the digits, left to right (0 = first).
+ * @param {boolean} props.isLast Whether this is the right-most digit.
+ * @param {boolean} props.tease Whether this reveal is a near miss.
  * @param {number} props.epoch Increments on every price change; starts a spin.
  * @param {string} props.toneClass Digit colour classes.
  * @returns {JSX.Element}
  */
-function Drum({ digit, order, epoch, toneClass }) {
+function Drum({ digit, order, isLast, tease, epoch, toneClass }) {
   const stripRef = useRef(null)
   const positionRef = useRef(digit) // current position, in cells (0 to 10)
+
+  // Remember the latest `tease` without restarting a spin that is in progress
+  // (it can change while the reels are still landing). Declared before the
+  // animation effect so it is current when a new spin starts.
+  const teaseRef = useRef(tease)
+  useEffect(() => {
+    teaseRef.current = tease
+  })
 
   useEffect(() => {
     const strip = stripRef.current
@@ -162,47 +186,68 @@ function Drum({ digit, order, epoch, toneClass }) {
     const startPosition = positionRef.current
     const startTime = performance.now()
 
+    const teasing = isLast && teaseRef.current
+
     const ramp = RAMP_MS / 1000
-    const spinSeconds = (FIRST_SPIN_MS + order * STAGGER_MS) / 1000 // brake engages
+    const spinSeconds =
+      (FIRST_SPIN_MS + order * STAGGER_MS + (teasing ? TEASE_EXTRA_SPIN_MS : 0)) / 1000 // brake engages
     const brake = BRAKE_MS / 1000
     const settle = SETTLE_MS / 1000
+    const hold = teasing ? TEASE_HOLD_MS / 1000 : 0
+    const creepSeconds = teasing ? TEASE_CREEP_MS / 1000 : 0
+    const creepCells = teasing ? TEASE_CREEP_CELLS : 0
 
     // Plan the distance. At speed v the reel covers v * (spin - ramp/2) while
     // spinning (the ramp covers half distance) plus v * brake / 3 while braking
     // (cubic ease-out). Pick whole turns so the total lands exactly on the
     // digit, then derive the speed that makes it fit this drum's fixed timeline.
+    // A teasing reel brakes `creepCells` short of the digit and creeps the rest.
     const effectiveSeconds = spinSeconds - ramp / 2 + brake / 3
     const ahead = mod10(digit - startPosition)
+    const minTurns = teasing ? 1 : 0 // keeps the brake point ahead of the start
     const wholeTurns = Math.max(
-      0,
+      minTurns,
       Math.round((SPIN_SPEED * effectiveSeconds - ahead) / 10),
     )
-    const travel = ahead + 10 * wholeTurns
-    const speed = travel / effectiveSeconds // cells per second for this drum
+    const travel = ahead + 10 * wholeTurns // total distance, lands on the digit
+    const brakeEnd = travel - creepCells // where the brake stops the reel
+    const speed = brakeEnd / effectiveSeconds // cells per second for this drum
     const spinEndPosition = speed * (spinSeconds - ramp / 2)
     const brakeDistance = (speed * brake) / 3
+
+    // Phase boundaries, in seconds.
+    const brakeAt = spinSeconds
+    const holdAt = brakeAt + brake
+    const creepAt = holdAt + hold
+    const settleAt = creepAt + creepSeconds
+    const endAt = settleAt + settle
 
     let frameId = 0
     const frame = (now) => {
       const t = Math.max(0, (now - startTime) / 1000)
 
       let offset // cells travelled so far
-      let currentSpeed
+      let currentSpeed = 0
 
       if (t < ramp) {
         offset = (speed * t * t) / (2 * ramp)
         currentSpeed = (speed * t) / ramp
-      } else if (t < spinSeconds) {
+      } else if (t < brakeAt) {
         offset = speed * (t - ramp / 2)
         currentSpeed = speed
-      } else if (t < spinSeconds + brake) {
-        const u = (t - spinSeconds) / brake
+      } else if (t < holdAt) {
+        const u = (t - brakeAt) / brake
         offset = spinEndPosition + brakeDistance * (1 - (1 - u) ** 3)
         currentSpeed = speed * (1 - u) ** 2
-      } else if (t < spinSeconds + brake + settle) {
-        const u = (t - spinSeconds - brake) / settle
+      } else if (t < creepAt) {
+        offset = brakeEnd // tease: stopped one digit short
+      } else if (t < settleAt) {
+        const u = (t - creepAt) / creepSeconds
+        const eased = u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2
+        offset = brakeEnd + creepCells * eased
+      } else if (t < endAt) {
+        const u = (t - settleAt) / settle
         offset = travel + OVERSHOOT * Math.sin(Math.PI * u) * (1 - u)
-        currentSpeed = 0
       } else {
         positionRef.current = digit
         draw(digit, 0)
@@ -217,7 +262,7 @@ function Drum({ digit, order, epoch, toneClass }) {
 
     frameId = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(frameId)
-  }, [digit, order, epoch])
+  }, [digit, order, isLast, epoch])
 
   return (
     <span
