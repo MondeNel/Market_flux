@@ -22,6 +22,7 @@ import MarketSelector from './MarketSelector'
  * @param {'up'|'down'} props.direction Direction of the last tick.
  * @param {boolean} props.isRoundLive Whether a round is running.
  * @param {boolean} props.canSelect Whether the market can be changed now.
+ * @param {boolean} [props.tease=false] Near-miss reveal: tease the last reel and glow amber.
  * @param {(marketId: string) => void} props.onSelect
  * @returns {JSX.Element}
  */
@@ -32,9 +33,15 @@ function MarketTicker({
   direction,
   isRoundLive,
   canSelect,
+  tease = false,
   onSelect,
 }) {
   const tone = isRoundLive ? direction : 'idle'
+
+  // The cylinder's rim turns amber while a near miss is being revealed.
+  const rim = tease
+    ? 'border-amber-300/80 shadow-[inset_0_0_18px_rgba(251,191,36,0.3),0_0_16px_rgba(251,191,36,0.5)]'
+    : 'border-cyan-300/60 shadow-[inset_0_0_18px_rgba(0,200,255,0.3),0_0_14px_rgba(0,210,255,0.4)]'
 
   return (
     // z-30 keeps the open picker above the play area beneath it.
@@ -74,7 +81,7 @@ function MarketTicker({
 
         {/* Odometer: one continuous cylinder with amber end caps */}
         <div
-          className="
+          className={`
             relative
             flex
             h-[54px]
@@ -85,11 +92,12 @@ function MarketTicker({
             overflow-hidden
             rounded-[14px]
             border
-            border-cyan-300/60
             bg-[linear-gradient(180deg,rgba(0,8,20,0.85)_0%,rgba(6,40,78,0.6)_30%,rgba(20,90,150,0.5)_50%,rgba(6,40,78,0.6)_70%,rgba(0,8,20,0.85)_100%)]
             px-2.5
-            shadow-[inset_0_0_18px_rgba(0,200,255,0.3),0_0_14px_rgba(0,210,255,0.4)]
-          "
+            transition-[border-color,box-shadow]
+            duration-300
+            ${rim}
+          `}
         >
           {/* Rim light along the top and bottom of the cylinder */}
           <span
@@ -115,6 +123,7 @@ function MarketTicker({
             value={price}
             decimals={market.decimals}
             tone={tone}
+            tease={tease}
           />
         </div>
 

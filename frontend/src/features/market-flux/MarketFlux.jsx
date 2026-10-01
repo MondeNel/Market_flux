@@ -32,7 +32,8 @@ function MarketFlux() {
         markets={game.markets}
         price={game.price}
         direction={game.direction}
-        isRoundLive={game.phase === 'live'}
+        isRoundLive={game.phase === 'live' || game.phase === 'revealing'}
+        tease={game.teasing}
         canSelect={game.canSelectMarket}
         onSelect={game.selectMarket}
       />
