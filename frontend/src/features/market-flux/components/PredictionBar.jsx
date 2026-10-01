@@ -29,7 +29,22 @@ function getTitle({ phase, outcome }) {
         tone: 'text-emerald-300',
       }
     }
+    if (outcome.nearMiss === 'bonus') {
+      return {
+        text: `So close to the bonus! -${money(outcome.stake)}`,
+        tone: 'text-amber-300',
+      }
+    }
+    if (outcome.nearMiss === 'photo') {
+      return {
+        text: `Photo finish, missed by ${outcome.marginPct.toFixed(2)}% -${money(outcome.stake)}`,
+        tone: 'text-amber-300',
+      }
+    }
     return { text: `Missed -${money(outcome.stake)}`, tone: 'text-rose-300' }
+  }
+  if (phase === 'revealing') {
+    return { text: 'Revealing price', tone: 'text-cyan-200' }
   }
   if (phase === 'live') return { text: 'Round live', tone: 'text-cyan-200' }
   return { text: 'Predict the next move', tone: 'text-cyan-300/80' }
@@ -40,7 +55,7 @@ function getTitle({ phase, outcome }) {
  * @param {number} props.changePct Price change since round open, in percent.
  * @param {number} props.round Current round (1-based).
  * @param {number} props.stake Current stake.
- * @param {'idle'|'live'|'result'} props.phase
+ * @param {'idle'|'live'|'revealing'|'result'} props.phase
  * @param {'up'|'down'|null} props.prediction
  * @param {number} props.elapsed Milliseconds elapsed in the live round.
  * @param {object|null} props.outcome Last round outcome.
@@ -60,7 +75,8 @@ function PredictionBar({
   const pctTone =
     rounded > 0 ? 'text-emerald-300' : rounded < 0 ? 'text-rose-300' : 'text-white'
 
-  const progress = phase === 'live' ? Math.min(elapsed / ROUND_MS, 1) : 0
+  const progress =
+    phase === 'live' ? Math.min(elapsed / ROUND_MS, 1) : phase === 'revealing' ? 1 : 0
   const title = getTitle({ phase, outcome })
   const PredictionIcon = prediction === 'up' ? ArrowUp : ArrowDown
 
