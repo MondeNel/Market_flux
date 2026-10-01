@@ -4,17 +4,13 @@
  * @description
  * Mobile-first liquid-glass HUD header for Market Flux.
  *
- * The header is designed to visually match the reference HUD:
- * - transparent glass surfaces
- * - extremely thin illuminated outlines
- * - sharp angular transitions
- * - subtle cyan atmospheric glow
- * - no solid backdrop cards
- *
  * Layout:
- * - Left: Market Flux brand HUD.
- * - Right: pointed liquid-glass player HUD.
- * - Player HUD: avatar, balance, rank and followers.
+ * - Left: compact 3D Market Flux wordmark.
+ * - Right: compact pointed liquid-glass player HUD.
+ *
+ * The Market Flux brand intentionally has no logo or surrounding border.
+ * The wordmark itself provides the illuminated HUD identity through layered
+ * cyan/white highlights and depth shadows.
  *
  * No gameplay state is managed here.
  */
@@ -36,7 +32,7 @@ function MarketFluxHeader({
   followers = 20,
 }) {
   return (
-    <header className="relative z-20 w-full px-3 pt-3">
+    <header className="relative z-20 w-full px-3 pt-2.5">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <Brand />
 
@@ -53,14 +49,14 @@ function MarketFluxHeader({
         className="
           pointer-events-none
           -ml-3
-          mt-2
+          mt-1.5
           h-px
-          w-[52%]
+          w-[48%]
           bg-gradient-to-r
-          from-cyan-200/85
-          via-cyan-400/35
+          from-cyan-200/75
+          via-cyan-400/30
           to-transparent
-          shadow-[0_0_7px_rgba(0,200,255,0.55)]
+          shadow-[0_0_6px_rgba(0,200,255,0.5)]
         "
       />
     </header>
@@ -68,267 +64,134 @@ function MarketFluxHeader({
 }
 
 /**
- * Market Flux brand HUD.
+ * Compact 3D Market Flux wordmark.
  *
- * The reference uses the brand as part of the illuminated HUD itself,
- * rather than placing the logo on a solid card.
+ * No logo and no surrounding border.
+ * The depth comes from layered text shadows and a subtle offset
+ * cyan extrusion beneath the primary text.
  *
  * @returns {JSX.Element}
  */
 function Brand() {
   return (
-    <div className="relative flex min-w-0 shrink items-center">
-      {/* Transparent liquid-glass brand outline. */}
-      <svg
+    <div className="relative min-w-0 shrink">
+      {/* Dark 3D extrusion / depth layer. */}
+      <span
         aria-hidden="true"
-        viewBox="0 0 151 38"
-        preserveAspectRatio="none"
         className="
           pointer-events-none
           absolute
-          inset-0
-          h-full
-          w-full
-          overflow-visible
-          drop-shadow-[0_0_5px_rgba(0,200,255,0.5)]
+          left-[1px]
+          top-[2px]
+          whitespace-nowrap
+          text-[clamp(13px,4vw,17px)]
+          font-black
+          uppercase
+          italic
+          leading-none
+          tracking-[0.015em]
+          text-cyan-950
+          opacity-90
         "
       >
-        <defs>
-          <linearGradient
-            id="market-flux-brand-edge"
-            x1="0"
-            y1="0"
-            x2="151"
-            y2="38"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop
-              offset="0"
-              stopColor="#8eeeff"
-              stopOpacity="0.95"
-            />
-            <stop
-              offset="0.16"
-              stopColor="#16bfff"
-              stopOpacity="0.7"
-            />
-            <stop
-              offset="0.62"
-              stopColor="#0797e6"
-              stopOpacity="0.42"
-            />
-            <stop
-              offset="0.88"
-              stopColor="#5de2ff"
-              stopOpacity="0.72"
-            />
-            <stop
-              offset="1"
-              stopColor="#baf6ff"
-              stopOpacity="0.9"
-            />
-          </linearGradient>
+        Market <span className="text-cyan-700">Flux</span>
+      </span>
 
-          <linearGradient
-            id="market-flux-brand-highlight"
-            x1="0"
-            y1="0"
-            x2="1"
-            y2="0"
-          >
-            <stop
-              offset="0"
-              stopColor="#ffffff"
-              stopOpacity="0"
-            />
-            <stop
-              offset="0.2"
-              stopColor="#ffffff"
-              stopOpacity="0.75"
-            />
-            <stop
-              offset="0.55"
-              stopColor="#b8f5ff"
-              stopOpacity="0.22"
-            />
-            <stop
-              offset="1"
-              stopColor="#ffffff"
-              stopOpacity="0"
-            />
-          </linearGradient>
-        </defs>
+      {/* Cyan illuminated lower edge. */}
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          left-0
+          top-[1px]
+          whitespace-nowrap
+          text-[clamp(13px,4vw,17px)]
+          font-black
+          uppercase
+          italic
+          leading-none
+          tracking-[0.015em]
+          text-cyan-500/70
+          blur-[1.5px]
+        "
+      >
+        Market <span>Flux</span>
+      </span>
 
-        {/* Main transparent HUD perimeter. */}
-        <path
-          d="
-            M13 1
-            L139 1
-            Q150 1 150 12
-            L150 26
-            Q150 37 139 37
-            L13 37
-            L2 19
-            Z
-          "
-          fill="none"
-          stroke="url(#market-flux-brand-edge)"
-          strokeWidth="1.15"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* Sharp angular meeting point. */}
-        <path
-          d="M13 2.5 L3.5 19 L13 35.5"
-          fill="none"
-          stroke="rgba(190,248,255,0.72)"
-          strokeWidth="0.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* Fine top reflection. */}
-        <path
-          d="M18 2.5 L132 2.5"
-          fill="none"
-          stroke="url(#market-flux-brand-highlight)"
-          strokeWidth="0.7"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-
-      <div
+      {/* Main wordmark. */}
+      <h1
         className="
           relative
           z-10
-          flex
-          h-[38px]
-          min-w-0
-          items-center
-          gap-1.5
-          pl-3
-          pr-4
+          whitespace-nowrap
+          text-[clamp(13px,4vw,17px)]
+          font-black
+          uppercase
+          italic
+          leading-none
+          tracking-[0.015em]
+          drop-shadow-[0_1px_0_rgba(0,40,65,0.95)]
+          drop-shadow-[0_2px_0_rgba(0,25,45,0.8)]
+          drop-shadow-[0_0_6px_rgba(0,200,255,0.55)]
         "
       >
-        <BrandGlyph />
-
-        <h1
+        <span
           className="
-            min-w-0
-            truncate
-            text-[clamp(10px,3vw,12.5px)]
-            font-black
-            uppercase
-            italic
-            leading-none
-            tracking-[0.025em]
-            drop-shadow-[0_0_8px_rgba(0,200,255,0.45)]
+            bg-gradient-to-b
+            from-white
+            via-slate-100
+            to-cyan-200
+            bg-clip-text
+            text-transparent
           "
         >
-          <span className="text-white">Market</span>
-          <span className="text-cyan-300">-Flux</span>
-        </h1>
-      </div>
+          Market
+        </span>
+
+        <span
+          className="
+            ml-1
+            bg-gradient-to-b
+            from-cyan-100
+            via-cyan-300
+            to-cyan-500
+            bg-clip-text
+            text-transparent
+            drop-shadow-[0_0_7px_rgba(0,210,255,0.65)]
+          "
+        >
+          Flux
+        </span>
+      </h1>
+
+      {/* Tiny reflective highlight across the wordmark. */}
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          left-[8%]
+          right-[10%]
+          top-0
+          z-20
+          h-px
+          bg-gradient-to-r
+          from-transparent
+          via-white/80
+          to-transparent
+          opacity-70
+        "
+      />
     </div>
   )
 }
 
 /**
- * Market Flux wave glyph.
+ * Compact liquid-glass player HUD.
  *
- * @returns {JSX.Element}
- */
-function BrandGlyph() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 52 44"
-      className="
-        h-[clamp(25px,7.5vw,32px)]
-        w-[clamp(29px,9vw,37px)]
-        shrink-0
-        drop-shadow-[0_0_8px_rgba(0,200,255,0.75)]
-      "
-    >
-      <defs>
-        <linearGradient
-          id="market-flux-glyph-light"
-          x1="0"
-          y1="0"
-          x2="1"
-          y2="1"
-        >
-          <stop offset="0" stopColor="#c4f8ff" />
-          <stop offset="1" stopColor="#10b5ef" />
-        </linearGradient>
-
-        <linearGradient
-          id="market-flux-glyph-deep"
-          x1="0"
-          y1="0"
-          x2="1"
-          y2="1"
-        >
-          <stop offset="0" stopColor="#36c9ff" />
-          <stop offset="1" stopColor="#1054d8" />
-        </linearGradient>
-      </defs>
-
-      {/* Crest. */}
-      <path
-        d="
-          M3 30
-          C6 16 18 5 34 6
-          C40 6.5 44 9 46 12
-          C40 10.5 34 12 31 17
-          C29 21 30 25 33 28
-          C26 25 20 26 15 31
-          C11 34 6 34 3 30
-          Z
-        "
-        fill="url(#market-flux-glyph-light)"
-      />
-
-      {/* Base swoosh. */}
-      <path
-        d="
-          M8 37
-          C16 31 26 31 33 34
-          C37 36 41 36 46 33
-          C43 40 34 42 26 41
-          C18 40 12 40 8 37
-          Z
-        "
-        fill="url(#market-flux-glyph-deep)"
-      />
-
-      {/* Curl. */}
-      <path
-        d="
-          M36 24
-          C39 20 44 21 46 25
-          C47 29 44 32 40 32
-          C42 29 41 26 36 24
-          Z
-        "
-        fill="url(#market-flux-glyph-light)"
-      />
-    </svg>
-  )
-}
-
-/**
- * Liquid-glass player HUD.
- *
- * The player panel deliberately has no backdrop fill.
- * The environment remains visible through the HUD while the
- * illuminated perimeter creates the glass effect.
- *
- * The outline fades out toward the pointed left end, so the two diagonal
- * edges dissolve into the scene instead of meeting in a bright hard point.
+ * The panel remains pointed on the left, but is smaller than the previous
+ * version to give the header a lighter footprint.
  *
  * @param {object} props
  * @param {number|string} props.balance
@@ -343,14 +206,14 @@ function PlayerPanel({ balance, rank, followers }) {
         relative
         min-w-0
         shrink-0
-        max-w-[67%]
+        max-w-[64%]
         overflow-visible
       "
     >
       {/* Main transparent liquid-glass perimeter. */}
       <svg
         aria-hidden="true"
-        viewBox="0 0 190 38"
+        viewBox="0 0 178 34"
         preserveAspectRatio="none"
         className="
           pointer-events-none
@@ -359,19 +222,15 @@ function PlayerPanel({ balance, rank, followers }) {
           h-full
           w-full
           overflow-visible
-          drop-shadow-[0_0_5px_rgba(0,200,255,0.55)]
+          drop-shadow-[0_0_5px_rgba(0,200,255,0.5)]
         "
       >
         <defs>
-          {/*
-           * Horizontal gradient: fully transparent at the left tip, fading up
-           * to the bright edge by about 16% of the width.
-           */}
           <linearGradient
             id="market-flux-player-edge"
             x1="0"
             y1="0"
-            x2="190"
+            x2="178"
             y2="0"
             gradientUnits="userSpaceOnUse"
           >
@@ -381,34 +240,34 @@ function PlayerPanel({ balance, rank, followers }) {
               stopOpacity="0"
             />
             <stop
-              offset="0.07"
+              offset="0.08"
               stopColor="#41d5ff"
               stopOpacity="0.18"
             />
             <stop
-              offset="0.17"
+              offset="0.18"
               stopColor="#41d5ff"
-              stopOpacity="0.78"
+              stopOpacity="0.72"
             />
             <stop
               offset="0.45"
               stopColor="#0aa8ef"
-              stopOpacity="0.48"
+              stopOpacity="0.44"
             />
             <stop
-              offset="0.75"
+              offset="0.76"
               stopColor="#22bfff"
-              stopOpacity="0.64"
+              stopOpacity="0.62"
             />
             <stop
-              offset="0.92"
+              offset="0.93"
               stopColor="#9af0ff"
-              stopOpacity="0.9"
+              stopOpacity="0.88"
             />
             <stop
               offset="1"
               stopColor="#e3fcff"
-              stopOpacity="0.96"
+              stopOpacity="0.95"
             />
           </linearGradient>
 
@@ -425,19 +284,19 @@ function PlayerPanel({ balance, rank, followers }) {
               stopOpacity="0"
             />
             <stop
-              offset="0.13"
+              offset="0.15"
               stopColor="#ffffff"
-              stopOpacity="0.78"
+              stopOpacity="0.72"
             />
             <stop
               offset="0.5"
               stopColor="#baf5ff"
-              stopOpacity="0.3"
+              stopOpacity="0.28"
             />
             <stop
               offset="0.86"
               stopColor="#ffffff"
-              stopOpacity="0.55"
+              stopOpacity="0.5"
             />
             <stop
               offset="1"
@@ -447,41 +306,41 @@ function PlayerPanel({ balance, rank, followers }) {
           </linearGradient>
         </defs>
 
-        {/* Main HUD outline. No fill. Fades out at the left point. */}
+        {/* Pointed HUD outline. */}
         <path
           d="
-            M13 1
-            L178 1
-            Q189 1 189 12
-            L189 26
-            Q189 37 178 37
-            L13 37
-            L2 19
+            M12 1
+            L166 1
+            Q177 1 177 11
+            L177 23
+            Q177 33 166 33
+            L12 33
+            L2 17
             Z
           "
           fill="none"
           stroke="url(#market-flux-player-edge)"
-          strokeWidth="1.2"
+          strokeWidth="1.1"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Upper liquid reflection. */}
+        {/* Upper glass reflection. */}
         <path
-          d="M20 2.8 L171 2.8"
+          d="M19 2.6 L159 2.6"
           fill="none"
           stroke="url(#market-flux-player-highlight)"
-          strokeWidth="0.7"
+          strokeWidth="0.65"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Lower reflected edge. */}
+        {/* Lower cyan reflection. */}
         <path
-          d="M21 35.2 L167 35.2"
+          d="M20 30.8 L157 30.8"
           fill="none"
-          stroke="rgba(33,190,245,0.22)"
-          strokeWidth="0.55"
+          stroke="rgba(33,190,245,0.2)"
+          strokeWidth="0.5"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
@@ -493,16 +352,16 @@ function PlayerPanel({ balance, rank, followers }) {
           relative
           z-10
           flex
-          h-[38px]
+          h-[34px]
           items-center
-          gap-2
-          pl-4
-          pr-3
+          gap-1.5
+          pl-3.5
+          pr-2.5
         "
       >
         <Avatar />
 
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
           <Metric
             label="Balance"
             value={`R ${Number(balance).toFixed(2)}`}
@@ -539,22 +398,22 @@ function Avatar() {
     <div
       className="
         grid
-        h-7
-        w-7
+        h-6
+        w-6
         shrink-0
         place-items-center
         rounded-full
         border
-        border-cyan-100/55
+        border-cyan-100/50
         bg-transparent
-        shadow-[inset_0_0_7px_rgba(0,190,255,0.24),0_0_6px_rgba(0,190,255,0.18)]
+        shadow-[inset_0_0_6px_rgba(0,190,255,0.24),0_0_5px_rgba(0,190,255,0.18)]
       "
     >
       <UserRound
         aria-hidden="true"
         className="
-          h-4
-          w-4
+          h-3.5
+          w-3.5
           text-cyan-50
           drop-shadow-[0_0_4px_rgba(120,230,255,0.55)]
         "
@@ -567,9 +426,6 @@ function Avatar() {
 /**
  * Metric displayed inside the player HUD.
  *
- * Icons are intentionally aligned with the metric label rather than
- * vertically centered against the entire label/value block.
- *
  * @param {object} props
  * @param {React.ElementType} [props.icon] Optional Lucide icon.
  * @param {string} props.label Metric label.
@@ -579,7 +435,7 @@ function Avatar() {
 function Metric({ icon: Icon, label, value }) {
   return (
     <div className="flex min-w-0 flex-col leading-none">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         {Icon && (
           <Icon
             aria-hidden="true"
@@ -596,7 +452,7 @@ function Metric({ icon: Icon, label, value }) {
 
         <span
           className="
-            text-[6.5px]
+            text-[6px]
             font-semibold
             text-slate-200/70
             drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]
@@ -608,9 +464,9 @@ function Metric({ icon: Icon, label, value }) {
 
       <span
         className="
-          mt-[3px]
+          mt-[2px]
           whitespace-nowrap
-          text-[10px]
+          text-[9px]
           font-extrabold
           tabular-nums
           text-white
@@ -633,14 +489,14 @@ function MetricDivider() {
     <div
       aria-hidden="true"
       className="
-        h-5
+        h-4
         w-px
         shrink-0
         bg-gradient-to-b
-        from-white/55
-        via-cyan-300/55
-        to-white/35
-        shadow-[0_0_4px_rgba(90,220,255,0.35)]
+        from-white/45
+        via-cyan-300/50
+        to-white/25
+        shadow-[0_0_4px_rgba(90,220,255,0.3)]
       "
     />
   )
