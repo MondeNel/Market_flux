@@ -30,9 +30,9 @@ export const MIN_STAKE = 5
 export const MAX_STAKE = 500
 export const STAKE_STEP = 5
 
-export const ROUND_MS = 6000
+export const ROUND_MS = 8000
 const RESULT_MS = 1800
-const TICK_MS = 2000 // one price update (and one slot-style reveal) per tick
+const TICK_MS = 4000 // one price update (and one slot-style reveal) per tick
 
 const DEFAULT_MARKET = MARKETS_BY_ID[DEFAULT_MARKET_ID]
 const START_BALANCE = 124.5

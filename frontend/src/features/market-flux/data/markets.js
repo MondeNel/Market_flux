@@ -5,7 +5,7 @@
  * Markets the player can choose from.
  *
  * Prices are simulation start values, not live quotes. `volatility` is the
- * largest fraction a price can move in one tick (0.0021 = 0.21%), applied once per 2s tick.
+ * largest fraction a price can move in one tick (0.0026 = 0.26%), applied once per 4s tick.
  */
 
 export const MARKETS = [
@@ -18,7 +18,7 @@ export const MARKETS = [
     glyphColor: '#ffffff',
     startPrice: 86538.74,
     decimals: 2,
-    volatility: 0.0021,
+    volatility: 0.0026,
   },
   {
     id: 'eth',
@@ -29,7 +29,7 @@ export const MARKETS = [
     glyphColor: '#ffffff',
     startPrice: 3245.18,
     decimals: 2,
-    volatility: 0.0026,
+    volatility: 0.0032,
   },
   {
     id: 'sol',
@@ -40,7 +40,7 @@ export const MARKETS = [
     glyphColor: '#04121a',
     startPrice: 148.62,
     decimals: 2,
-    volatility: 0.0034,
+    volatility: 0.0042,
   },
   {
     id: 'bnb',
@@ -51,7 +51,7 @@ export const MARKETS = [
     glyphColor: '#1a1200',
     startPrice: 612.4,
     decimals: 2,
-    volatility: 0.0023,
+    volatility: 0.0028,
   },
   {
     id: 'xrp',
@@ -62,7 +62,7 @@ export const MARKETS = [
     glyphColor: '#ffffff',
     startPrice: 0.5231,
     decimals: 4,
-    volatility: 0.0029,
+    volatility: 0.0036,
   },
 ]
 
