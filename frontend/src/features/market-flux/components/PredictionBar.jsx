@@ -114,7 +114,7 @@ function PredictionBar({
               strokeLinecap="round"
               strokeDasharray={RING_LENGTH}
               strokeDashoffset={RING_LENGTH * (1 - progress)}
-              className="transition-[stroke-dashoffset] duration-[2000ms] ease-linear"
+              className="transition-[stroke-dashoffset] duration-[4000ms] ease-linear"
             />
           </svg>
           <span className="absolute inset-0 grid place-items-center">
