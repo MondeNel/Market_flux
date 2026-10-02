@@ -14,12 +14,26 @@
  * The artwork is one SVG that stretches to the panel, with non-scaling
  * strokes. The Down panel is the Up panel mirrored. Interaction is unchanged:
  * swipe (touch or mouse drag) or tap/click, and Enter/Space from the keyboard.
+ *
+ * 3D: each panel is turned about the vertical axis so its inner edge recedes
+ * (the Up panel faces right, the Down panel faces left), with CSS perspective.
+ * The frame is extruded by stacking darker copies of its outline behind the
+ * face, so the turn shows real thickness on the outer edge. The chevrons and
+ * label sit in front of the glass. A selected panel pops forward, and a
+ * pressed one pushes in. Where 3D isn't supported the copies simply stack
+ * behind the face and the panel looks flat.
  */
 
 import { useId, useRef } from 'react'
 
 const SWIPE_DISTANCE = 36
 const TAP_TOLERANCE = 10
+
+// Extrusion: how many slices, and how deep the whole frame is, in px.
+const SLICES = 8
+const DEPTH = 16
+// Near slice to far slice: steel fading into shadow.
+const SLICE_SHADES = ['#16405f', '#12354f', '#0f2b44', '#0c2339', '#091b2e', '#071524', '#050f1b', '#030a13']
 
 // Artwork box. The SVG stretches to the panel, so only proportions matter.
 const W = 88
@@ -68,8 +82,12 @@ const PALETTES = {
     rim: '#37ff9e',
     wisp: '#6dffc0',
     chevron: ['#58f0b0', '#10b878'],
-    glow: 'drop-shadow-[0_0_6px_rgba(52,255,160,0.35)]',
-    glowActive: 'drop-shadow-[0_0_16px_rgba(52,255,160,0.9)]',
+    // Turned so the inner (right) edge recedes. Selected pops forward, pressed pushes in.
+    tilt: '[transform:perspective(420px)_rotateY(24deg)]',
+    tiltSelected: '[transform:perspective(420px)_rotateY(24deg)_translateZ(14px)]',
+    tiltPressed: 'active:[transform:perspective(420px)_rotateY(24deg)_translateZ(-8px)]',
+    glow: '[filter:drop-shadow(0_0_6px_rgba(52,255,160,0.35))_drop-shadow(0_14px_10px_rgba(0,0,0,0.55))]',
+    glowActive: '[filter:drop-shadow(0_0_16px_rgba(52,255,160,0.9))_drop-shadow(0_18px_12px_rgba(0,0,0,0.6))]',
     chevronGlow: 'drop-shadow-[0_0_6px_rgba(52,255,160,0.55)]',
     focus: 'focus-visible:outline-emerald-300',
   },
@@ -81,8 +99,11 @@ const PALETTES = {
     rim: '#ff3b30',
     wisp: '#ff7a6a',
     chevron: ['#ff5545', '#d90d0d'],
-    glow: 'drop-shadow-[0_0_6px_rgba(255,60,50,0.35)]',
-    glowActive: 'drop-shadow-[0_0_16px_rgba(255,70,60,0.9)]',
+    tilt: '[transform:perspective(420px)_rotateY(-24deg)]',
+    tiltSelected: '[transform:perspective(420px)_rotateY(-24deg)_translateZ(14px)]',
+    tiltPressed: 'active:[transform:perspective(420px)_rotateY(-24deg)_translateZ(-8px)]',
+    glow: '[filter:drop-shadow(0_0_6px_rgba(255,60,50,0.35))_drop-shadow(0_14px_10px_rgba(0,0,0,0.55))]',
+    glowActive: '[filter:drop-shadow(0_0_16px_rgba(255,70,60,0.9))_drop-shadow(0_18px_12px_rgba(0,0,0,0.6))]',
     chevronGlow: 'drop-shadow-[0_0_6px_rgba(255,60,50,0.55)]',
     focus: 'focus-visible:outline-red-300',
   },
@@ -128,6 +149,10 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
     if (event.detail === 0 && !disabled) onSelect(direction)
   }
 
+  // Dimming is applied to each layer, not the button: opacity on the button
+  // would flatten its 3D layers.
+  const dim = dimmed ? 'opacity-40' : ''
+
   return (
     <button
       type="button"
@@ -147,24 +172,26 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
         w-full
         touch-none
         select-none
+        [transform-style:preserve-3d]
         outline-offset-4
-        transition-[opacity,transform]
+        transition-transform
         duration-200
         focus-visible:outline
         focus-visible:outline-2
-        active:scale-[0.98]
         motion-reduce:transition-none
+        ${selected ? palette.tiltSelected : palette.tilt}
+        ${palette.tiltPressed}
         ${palette.focus}
-        ${dimmed ? 'opacity-40' : ''}
         ${disabled && !selected ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}
     >
-      <PanelArtwork id={id} palette={palette} selected={selected} />
+      <Extrusion palette={palette} dim={dim} />
+      <PanelArtwork id={id} palette={palette} selected={selected} dim={dim} />
 
-      {/* Chevrons */}
+      {/* Chevrons, floating in front of the glass */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-[34%] flex justify-center"
+        className={`pointer-events-none absolute inset-x-0 top-[34%] flex justify-center transition-opacity duration-200 [transform:translateZ(10px)] ${dim}`}
       >
         <span
           className={`flex w-[40%] flex-col items-stretch -space-y-[2px] ${palette.chevronGlow}`}
@@ -181,7 +208,9 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
       </span>
 
       {/* Label */}
-      <span className="pointer-events-none absolute inset-x-0 top-[68%] flex flex-col items-center leading-tight">
+      <span
+        className={`pointer-events-none absolute inset-x-0 top-[68%] flex flex-col items-center leading-tight transition-opacity duration-200 [transform:translateZ(8px)] ${dim}`}
+      >
         <span className="text-[clamp(8px,2.4vw,10px)] font-semibold uppercase tracking-[0.1em] text-white/85 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
           Swipe
         </span>
@@ -191,6 +220,38 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
       </span>
     </button>
   )
+}
+
+/**
+ * Frame thickness: copies of the outline stacked behind the face, each one a
+ * little deeper and darker. When the panel is turned, the offset between the
+ * copies shows as a solid edge.
+ */
+function Extrusion({ palette, dim }) {
+  const flip = palette.mirror ? `translate(${W} 0) scale(-1 1)` : undefined
+
+  return SLICE_SHADES.map((shade, index) => (
+    <svg
+      key={index}
+      aria-hidden="true"
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ transform: `translateZ(${-((index + 1) * DEPTH) / SLICES}px)` }}
+      className={`pointer-events-none absolute inset-0 h-full w-full overflow-visible transition-opacity duration-200 ${dim}`}
+    >
+      <g transform={flip}>
+        <path
+          d={OUTER}
+          fill={shade}
+          stroke={palette.rim}
+          strokeOpacity={index < 2 ? 0.45 : 0.12}
+          strokeWidth="0.8"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </g>
+    </svg>
+  ))
 }
 
 /**
@@ -213,7 +274,7 @@ function Chevron({ direction, gradientId, opacity }) {
  * Frame, glass body, plasma texture and neon edge.
  * The Down panel draws the same art mirrored.
  */
-function PanelArtwork({ id, palette, selected }) {
+function PanelArtwork({ id, palette, selected, dim }) {
   const { body, rim, wisp, chevron, mirror } = palette
   const flip = mirror ? `translate(${W} 0) scale(-1 1)` : undefined
 
@@ -229,10 +290,11 @@ function PanelArtwork({ id, palette, selected }) {
         h-full
         w-full
         overflow-visible
-        transition-[filter]
+        transition-[filter,opacity]
         duration-200
         motion-reduce:transition-none
         ${selected ? palette.glowActive : palette.glow}
+        ${dim}
       `}
     >
       <defs>
@@ -285,6 +347,19 @@ function PanelArtwork({ id, palette, selected }) {
           <stop offset="1" stopColor="#7fd8ff" stopOpacity="0" />
         </radialGradient>
 
+        {/* Bevel light: bright top-left, dark bottom-right */}
+        <linearGradient id={`${id}-bevel`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.6" />
+          <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="1" stopColor="#000000" stopOpacity="0.5" />
+        </linearGradient>
+
+        {/* Glass reflection */}
+        <linearGradient id={`${id}-gloss`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.2" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+
         {/* Amber side tabs */}
         <linearGradient id={`${id}-amber`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#ffb23c" />
@@ -332,6 +407,15 @@ function PanelArtwork({ id, palette, selected }) {
           vectorEffect="non-scaling-stroke"
         />
 
+        {/* Bevel: lit edge on the frame's top-left, shaded bottom-right */}
+        <path
+          d={chamfer(1.1, 1.1, W - 2.2, H - 2.2, { dx: 7.5, dy: 11 }, { dx: 16, dy: 22 }, { dx: 7.5, dy: 11 }, { dx: 16, dy: 22 })}
+          fill="none"
+          stroke={`url(#${id}-bevel)`}
+          strokeWidth="1.1"
+          vectorEffect="non-scaling-stroke"
+        />
+
         {/* Glass body and plasma */}
         <path d={INNER} fill={`url(#${id}-body)`} />
         <g clipPath={`url(#${id}-inner)`}>
@@ -356,6 +440,9 @@ function PanelArtwork({ id, palette, selected }) {
               <path d={d} fill="none" stroke={wisp} strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
             </g>
           ))}
+
+          {/* Curved reflection across the top of the glass */}
+          <path d={`M0 0 H${W} V84 C62 66 30 98 0 150 Z`} fill={`url(#${id}-gloss)`} />
 
           {/* Star glint */}
           <circle cx="66" cy="34" r="12" fill={`url(#${id}-star)`} />
