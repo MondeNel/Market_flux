@@ -10,21 +10,23 @@
  * - Deep glass interior with green/red plasma.
  * - Bright neon inner rim and structural side rails.
  * - Three large directional chevrons floating above the glass.
+ * - Swipe gesture produces a directional confirmation animation.
  * - Compact SWIPE UP / SWIPE DOWN label near the lower section.
  *
  * Interaction:
- * - Swipe upward  -> Up
- * - Swipe downward -> Down
- * - Tap / click   -> Select
- * - Enter / Space -> Select
+ * - Swipe upward   -> Up + directional swipe animation
+ * - Swipe downward -> Down + directional swipe animation
+ * - Tap / click    -> Select without swipe animation
+ * - Enter / Space  -> Select without swipe animation
  *
  * The Down panel mirrors the Up panel.
  */
 
-import { useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 const SWIPE_DISTANCE = 36
 const TAP_TOLERANCE = 10
+const SWIPE_FEEDBACK_MS = 520
 
 /*
  * ---------------------------------------------------------------------------
@@ -117,7 +119,8 @@ const PALETTES = {
     rail: '#27e9a0',
     railBright: '#9affd2',
 
-    glow: 'drop-shadow-[0_0_7px_rgba(40,255,155,0.38)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
+    glow:
+      'drop-shadow-[0_0_7px_rgba(40,255,155,0.38)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
 
     glowActive:
       'drop-shadow-[0_0_18px_rgba(40,255,155,0.95)]_drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
@@ -153,7 +156,8 @@ const PALETTES = {
     rail: '#ff3732',
     railBright: '#ffaaa3',
 
-    glow: 'drop-shadow-[0_0_7px_rgba(255,50,45,0.4)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
+    glow:
+      'drop-shadow-[0_0_7px_rgba(255,50,45,0.4)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
 
     glowActive:
       'drop-shadow-[0_0_18px_rgba(255,55,45,0.95)]_drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
@@ -200,11 +204,48 @@ function SwipePanel({
 }) {
   const palette = PALETTES[direction]
   const startY = useRef(null)
+  const feedbackTimer = useRef(null)
+
+  const [swipeFeedback, setSwipeFeedback] = useState(false)
 
   const id = `mf-${direction}-${useId().replace(/:/g, '')}`
 
+  /*
+   * Clean up the feedback timer when the component unmounts.
+   */
+  useEffect(() => {
+    return () => {
+      if (feedbackTimer.current) {
+        clearTimeout(feedbackTimer.current)
+      }
+    }
+  }, [])
+
+  /*
+   * Trigger the short directional confirmation animation.
+   *
+   * The animation is deliberately local to the panel. The game state does
+   * not need to know about it because it is purely interaction feedback.
+   */
+  const triggerSwipeFeedback = () => {
+    if (feedbackTimer.current) {
+      clearTimeout(feedbackTimer.current)
+    }
+
+    setSwipeFeedback(false)
+
+    requestAnimationFrame(() => {
+      setSwipeFeedback(true)
+
+      feedbackTimer.current = setTimeout(() => {
+        setSwipeFeedback(false)
+      }, SWIPE_FEEDBACK_MS)
+    })
+  }
+
   const handlePointerDown = (event) => {
     startY.current = event.clientY
+
     event.currentTarget.setPointerCapture?.(event.pointerId)
   }
 
@@ -222,7 +263,22 @@ function SwipePanel({
 
     const tapped = Math.abs(delta) < TAP_TOLERANCE
 
-    if (!disabled && (swiped || tapped)) {
+    /*
+     * Real swipe:
+     * 1. Show the directional gesture feedback.
+     * 2. Commit the prediction.
+     */
+    if (!disabled && swiped) {
+      triggerSwipeFeedback()
+      onSelect(direction)
+      return
+    }
+
+    /*
+     * Tap:
+     * Commit normally, but do NOT play the swipe animation.
+     */
+    if (!disabled && tapped) {
       onSelect(direction)
     }
   }
@@ -240,6 +296,12 @@ function SwipePanel({
    */
   const dim = dimmed ? 'opacity-35' : ''
 
+  const swipeAnimation = swipeFeedback
+    ? direction === 'up'
+      ? 'swipe-confirm-up'
+      : 'swipe-confirm-down'
+    : ''
+
   return (
     <button
       type="button"
@@ -253,6 +315,7 @@ function SwipePanel({
       }}
       onClick={handleKeyboardClick}
       className={`
+        group
         relative
         block
         h-full
@@ -288,6 +351,16 @@ function SwipePanel({
       />
 
       {/* ----------------------------------------------------------------- */}
+      {/* Swipe energy trail                                                 */}
+      {/* ----------------------------------------------------------------- */}
+
+      <SwipeEnergy
+        palette={palette}
+        visible={swipeFeedback}
+        direction={direction}
+      />
+
+      {/* ----------------------------------------------------------------- */}
       {/* Direction chevrons                                                 */}
       {/* ----------------------------------------------------------------- */}
 
@@ -300,10 +373,9 @@ function SwipePanel({
           top-[31%]
           flex
           justify-center
-          transition-opacity
-          duration-200
           [transform:translateZ(14px)]
           ${dim}
+          ${swipeAnimation}
         `}
       >
         <span
@@ -314,6 +386,11 @@ function SwipePanel({
             items-stretch
             -space-y-[4px]
             ${palette.chevronGlow}
+            ${
+              swipeFeedback
+                ? 'swipe-chevron-active'
+                : ''
+            }
           `}
         >
           {CHEVRON_OPACITY.map((opacity, index) => (
@@ -322,6 +399,8 @@ function SwipePanel({
               direction={direction}
               gradientId={`${id}-chevron`}
               opacity={opacity}
+              active={swipeFeedback}
+              index={index}
             />
           ))}
         </span>
@@ -341,10 +420,11 @@ function SwipePanel({
           flex-col
           items-center
           leading-none
-          transition-opacity
+          transition-all
           duration-200
           [transform:translateZ(12px)]
           ${dim}
+          ${swipeFeedback ? 'scale-105 opacity-100' : ''}
         `}
       >
         <span
@@ -357,11 +437,11 @@ function SwipePanel({
             drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]
           "
         >
-          Swipe
+          {swipeFeedback ? 'Locked' : 'Swipe'}
         </span>
 
         <span
-          className="
+          className={`
             mt-1
             text-[clamp(12px,3.5vw,15px)]
             font-black
@@ -369,12 +449,145 @@ function SwipePanel({
             tracking-[0.08em]
             text-white
             drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]
-          "
+            ${
+              swipeFeedback
+                ? direction === 'up'
+                  ? 'text-emerald-200'
+                  : 'text-red-200'
+                : ''
+            }
+          `}
         >
           {palette.label}
         </span>
       </span>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Swipe confirmation pulse                                           */}
+      {/* ----------------------------------------------------------------- */}
+
+      <span
+        aria-hidden="true"
+        className={`
+          pointer-events-none
+          absolute
+          left-1/2
+          top-1/2
+          h-[38%]
+          w-[42%]
+          -translate-x-1/2
+          -translate-y-1/2
+          rounded-full
+          opacity-0
+          blur-[16px]
+          [transform:translate(-50%,-50%)_translateZ(8px)]
+          ${
+            swipeFeedback
+              ? direction === 'up'
+                ? 'bg-emerald-300/25 swipe-pulse'
+                : 'bg-red-300/25 swipe-pulse'
+              : ''
+          }
+        `}
+      />
     </button>
+  )
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Swipe energy
+ * ---------------------------------------------------------------------------
+ *
+ * These lines appear only after an actual swipe.
+ *
+ * Up:
+ *   energy travels upward.
+ *
+ * Down:
+ *   energy travels downward.
+ */
+
+function SwipeEnergy({
+  palette,
+  visible,
+  direction,
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`
+        pointer-events-none
+        absolute
+        inset-x-0
+        top-[24%]
+        z-20
+        flex
+        justify-center
+        opacity-0
+        [transform:translateZ(18px)]
+        ${visible ? 'swipe-energy-visible' : ''}
+      `}
+    >
+      <span
+        className="
+          relative
+          h-[118px]
+          w-[30%]
+        "
+      >
+        <span
+          className={`
+            absolute
+            left-1/2
+            top-1/2
+            h-[92px]
+            w-[2px]
+            -translate-x-1/2
+            -translate-y-1/2
+            rounded-full
+            ${
+              direction === 'up'
+                ? 'bg-gradient-to-t'
+                : 'bg-gradient-to-b'
+            }
+            from-transparent
+            via-white
+            to-transparent
+            opacity-90
+          `}
+          style={{
+            boxShadow: `0 0 7px ${palette.rim}, 0 0 18px ${palette.rim}`,
+          }}
+        />
+
+        <span
+          className={`
+            absolute
+            left-1/2
+            top-1/2
+            h-[55px]
+            w-[9px]
+            -translate-x-1/2
+            -translate-y-1/2
+            rounded-full
+            blur-[6px]
+            ${
+              direction === 'up'
+                ? 'bg-gradient-to-t'
+                : 'bg-gradient-to-b'
+            }
+            from-transparent
+            via-current
+            to-transparent
+          `}
+          style={{
+            color: palette.rim,
+            opacity: 0.7,
+          }}
+        />
+      </span>
+    </span>
   )
 }
 
@@ -413,7 +626,6 @@ function Extrusion({ palette, dim }) {
       `}
     >
       <g transform={flip}>
-        {/* Main extrusion shell */}
         <path
           d={OUTER}
           fill={shade}
@@ -424,7 +636,6 @@ function Extrusion({ palette, dim }) {
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Deep horizontal bevel */}
         <path
           d={OUTER}
           fill="none"
@@ -448,6 +659,8 @@ function Chevron({
   direction,
   gradientId,
   opacity,
+  active,
+  index,
 }) {
   const points =
     direction === 'up'
@@ -457,8 +670,22 @@ function Chevron({
   return (
     <svg
       viewBox="0 0 100 84"
-      className="block w-full"
-      style={{ opacity }}
+      className={`
+        block
+        w-full
+        ${
+          active
+            ? index === 0
+              ? 'swipe-arrow-front'
+              : index === 1
+                ? 'swipe-arrow-middle'
+                : 'swipe-arrow-back'
+            : ''
+        }
+      `}
+      style={{
+        opacity: active ? 1 : opacity,
+      }}
     >
       <polygon
         points={points}
@@ -514,10 +741,6 @@ function PanelArtwork({
       `}
     >
       <defs>
-        {/* --------------------------------------------------------------- */}
-        {/* Outer metal                                                      */}
-        {/* --------------------------------------------------------------- */}
-
         <linearGradient
           id={`${id}-frame`}
           x1="0"
@@ -580,10 +803,6 @@ function PanelArtwork({
           />
         </linearGradient>
 
-        {/* --------------------------------------------------------------- */}
-        {/* Dark glass                                                       */}
-        {/* --------------------------------------------------------------- */}
-
         <linearGradient
           id={`${id}-body`}
           x1="0"
@@ -612,10 +831,6 @@ function PanelArtwork({
             stopColor={body[3]}
           />
         </linearGradient>
-
-        {/* --------------------------------------------------------------- */}
-        {/* Glass vertical lighting                                          */}
-        {/* --------------------------------------------------------------- */}
 
         <linearGradient
           id={`${id}-glass-light`}
@@ -651,10 +866,6 @@ function PanelArtwork({
           />
         </linearGradient>
 
-        {/* --------------------------------------------------------------- */}
-        {/* Plasma                                                            */}
-        {/* --------------------------------------------------------------- */}
-
         <radialGradient id={`${id}-plasma`}>
           <stop
             offset="0"
@@ -685,10 +896,6 @@ function PanelArtwork({
             stopOpacity="0"
           />
         </radialGradient>
-
-        {/* --------------------------------------------------------------- */}
-        {/* Metallic bevel                                                   */}
-        {/* --------------------------------------------------------------- */}
 
         <linearGradient
           id={`${id}-bevel`}
@@ -724,10 +931,6 @@ function PanelArtwork({
           />
         </linearGradient>
 
-        {/* --------------------------------------------------------------- */}
-        {/* Glass reflection                                                 */}
-        {/* --------------------------------------------------------------- */}
-
         <linearGradient
           id={`${id}-gloss`}
           x1="0"
@@ -756,10 +959,6 @@ function PanelArtwork({
             stopOpacity="0.3"
           />
         </linearGradient>
-
-        {/* --------------------------------------------------------------- */}
-        {/* Side rail                                                        */}
-        {/* --------------------------------------------------------------- */}
 
         <linearGradient
           id={`${id}-rail`}
@@ -790,10 +989,6 @@ function PanelArtwork({
           />
         </linearGradient>
 
-        {/* --------------------------------------------------------------- */}
-        {/* Neon rim                                                          */}
-        {/* --------------------------------------------------------------- */}
-
         <linearGradient
           id={`${id}-rim`}
           x1="0"
@@ -818,10 +1013,6 @@ function PanelArtwork({
             stopColor={rimBright}
           />
         </linearGradient>
-
-        {/* --------------------------------------------------------------- */}
-        {/* Highlight                                                         */}
-        {/* --------------------------------------------------------------- */}
 
         <radialGradient id={`${id}-glint`}>
           <stop
@@ -869,7 +1060,6 @@ function PanelArtwork({
           <path d={INNER_SHADOW} />
         </clipPath>
 
-        {/* Shared chevron gradient */}
         <linearGradient
           id={`${id}-chevron`}
           x1="0"
@@ -889,10 +1079,7 @@ function PanelArtwork({
       </defs>
 
       <g transform={flip}>
-        {/* =============================================================== */}
-        {/* Mechanical side tabs                                             */}
-        {/* =============================================================== */}
-
+        {/* Mechanical side tabs */}
         <g>
           <rect
             x="-1.5"
@@ -935,10 +1122,7 @@ function PanelArtwork({
           />
         </g>
 
-        {/* =============================================================== */}
-        {/* Outer metal chassis                                              */}
-        {/* =============================================================== */}
-
+        {/* Outer metal chassis */}
         <path
           d={OUTER}
           fill={`url(#${id}-frame)`}
@@ -948,7 +1132,6 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Outer dark recess */}
         <path
           d={chamfer(
             2.2,
@@ -967,7 +1150,6 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Outer metallic highlight */}
         <path
           d={chamfer(
             1.1,
@@ -985,17 +1167,13 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* =============================================================== */}
-        {/* Glass interior                                                   */}
-        {/* =============================================================== */}
-
+        {/* Glass interior */}
         <path
           d={INNER}
           fill={`url(#${id}-body)`}
         />
 
         <g clipPath={`url(#${id}-inner)`}>
-          {/* Vertical glass illumination */}
           <rect
             x="0"
             y="0"
@@ -1004,7 +1182,6 @@ function PanelArtwork({
             fill={`url(#${id}-glass-light)`}
           />
 
-          {/* Deep central shadow */}
           <ellipse
             cx="44"
             cy="154"
@@ -1014,7 +1191,6 @@ function PanelArtwork({
             opacity="0.18"
           />
 
-          {/* Plasma cloud upper */}
           <ellipse
             cx="65"
             cy="45"
@@ -1023,7 +1199,6 @@ function PanelArtwork({
             fill={`url(#${id}-plasma)`}
           />
 
-          {/* Plasma cloud lower */}
           <ellipse
             cx="22"
             cy="257"
@@ -1032,7 +1207,6 @@ function PanelArtwork({
             fill={`url(#${id}-plasma)`}
           />
 
-          {/* Central atmospheric glow */}
           <ellipse
             cx="44"
             cy="151"
@@ -1041,10 +1215,6 @@ function PanelArtwork({
             fill={`url(#${id}-plasma-soft)`}
             opacity="0.55"
           />
-
-          {/* ============================================================= */}
-          {/* Plasma wisps                                                    */}
-          {/* ============================================================= */}
 
           {[
             ['M18 37 C36 65 66 62 80 24', 1],
@@ -1078,10 +1248,6 @@ function PanelArtwork({
             </g>
           ))}
 
-          {/* ============================================================= */}
-          {/* Upper glass reflection                                          */}
-          {/* ============================================================= */}
-
           <path
             d={`
               M0 0
@@ -1093,7 +1259,6 @@ function PanelArtwork({
             fill={`url(#${id}-gloss)`}
           />
 
-          {/* Thin diagonal glass reflection */}
           <path
             d="M10 26 C29 50 49 61 76 39"
             fill="none"
@@ -1101,10 +1266,6 @@ function PanelArtwork({
             strokeOpacity="0.1"
             strokeWidth="1"
           />
-
-          {/* ============================================================= */}
-          {/* Central vertical glass streak                                   */}
-          {/* ============================================================= */}
 
           <rect
             x="43"
@@ -1114,10 +1275,6 @@ function PanelArtwork({
             fill={rimBright}
             opacity="0.07"
           />
-
-          {/* ============================================================= */}
-          {/* Floating glints                                                  */}
-          {/* ============================================================= */}
 
           <circle
             cx="65"
@@ -1142,10 +1299,6 @@ function PanelArtwork({
             opacity="0.45"
           />
 
-          {/* ============================================================= */}
-          {/* Glass lower shadow                                              */}
-          {/* ============================================================= */}
-
           <path
             d={INNER_SHADOW}
             fill="#000000"
@@ -1153,10 +1306,7 @@ function PanelArtwork({
           />
         </g>
 
-        {/* =============================================================== */}
-        {/* Inner neon rim glow                                               */}
-        {/* =============================================================== */}
-
+        {/* Inner neon rim glow */}
         <path
           d={INNER}
           fill="none"
@@ -1175,11 +1325,7 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* =============================================================== */}
-        {/* Structural side rails                                             */}
-        {/* =============================================================== */}
-
-        {/* Left rail glow */}
+        {/* Structural side rails */}
         <path
           d="M8 28 L8 272"
           fill="none"
@@ -1190,7 +1336,6 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Left rail core */}
         <path
           d="M8 31 L8 269"
           fill="none"
@@ -1199,7 +1344,6 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Right rail glow */}
         <path
           d="M80 28 L80 272"
           fill="none"
@@ -1210,7 +1354,6 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Right rail core */}
         <path
           d="M80 31 L80 269"
           fill="none"
@@ -1219,10 +1362,7 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* =============================================================== */}
-        {/* Mechanical horizontal separators                                  */}
-        {/* =============================================================== */}
-
+        {/* Mechanical horizontal separators */}
         {[66, 229].map((y) => (
           <g key={y}>
             <path
@@ -1243,10 +1383,7 @@ function PanelArtwork({
           </g>
         ))}
 
-        {/* =============================================================== */}
-        {/* Small mechanical corner lights                                    */}
-        {/* =============================================================== */}
-
+        {/* Small mechanical corner lights */}
         <circle
           cx="9"
           cy="10"
