@@ -2,26 +2,23 @@
  * @file src/features/market-flux/components/SwipePanel.jsx
  *
  * @description
- * Swipe Up (green) and Swipe Down (red) prediction panels, matched to the
- * Wave-Ride reference:
+ * 3D liquid-glass prediction control for Market Flux.
  *
- * - A chamfered steel frame with a bright rim, specular glints and amber side
- *   tabs.
- * - An inner glass panel with a neon edge and a plasma texture (glowing wisps
- *   and a star glint).
- * - Three solid chevrons that fade from top to bottom, then the label.
+ * Visual direction:
+ * - Tall, narrow mechanical control inspired by the Wave-Ride reference.
+ * - Heavy dark-metal extrusion gives the panel physical depth.
+ * - Deep glass interior with green/red plasma.
+ * - Bright neon inner rim and structural side rails.
+ * - Three large directional chevrons floating above the glass.
+ * - Compact SWIPE UP / SWIPE DOWN label near the lower section.
  *
- * The artwork is one SVG that stretches to the panel, with non-scaling
- * strokes. The Down panel is the Up panel mirrored. Interaction is unchanged:
- * swipe (touch or mouse drag) or tap/click, and Enter/Space from the keyboard.
+ * Interaction:
+ * - Swipe upward  -> Up
+ * - Swipe downward -> Down
+ * - Tap / click   -> Select
+ * - Enter / Space -> Select
  *
- * 3D: each panel is turned about the vertical axis so its inner edge recedes
- * (the Up panel faces right, the Down panel faces left), with CSS perspective.
- * The frame is extruded by stacking darker copies of its outline behind the
- * face, so the turn shows real thickness on the outer edge. The chevrons and
- * label sit in front of the glass. A selected panel pops forward, and a
- * pressed one pushes in. Where 3D isn't supported the copies simply stack
- * behind the face and the panel looks flat.
+ * The Down panel mirrors the Up panel.
  */
 
 import { useId, useRef } from 'react'
@@ -29,23 +26,36 @@ import { useId, useRef } from 'react'
 const SWIPE_DISTANCE = 36
 const TAP_TOLERANCE = 10
 
-// Extrusion: how many slices, and how deep the whole frame is, in px.
-const SLICES = 8
-const DEPTH = 16
-// Near slice to far slice: steel fading into shadow.
-const SLICE_SHADES = ['#16405f', '#12354f', '#0f2b44', '#0c2339', '#091b2e', '#071524', '#050f1b', '#030a13']
+/*
+ * ---------------------------------------------------------------------------
+ * Mechanical geometry
+ * ---------------------------------------------------------------------------
+ */
 
-// Artwork box. The SVG stretches to the panel, so only proportions matter.
 const W = 88
 const H = 300
 
-const SMALL = { dx: 8, dy: 12 }
-const LARGE = { dx: 17, dy: 23 }
+const SLICES = 12
+const DEPTH = 24
 
-/**
- * Rectangle with a diagonal cut on each corner.
- * Corners are { dx, dy }: how far the cut runs along x and y.
- */
+const SLICE_SHADES = [
+  '#153b58',
+  '#12334d',
+  '#102d45',
+  '#0e283e',
+  '#0c2236',
+  '#0a1d2f',
+  '#081827',
+  '#06131f',
+  '#050f19',
+  '#040b14',
+  '#030810',
+  '#02060c',
+]
+
+const SMALL = { dx: 8, dy: 12 }
+const LARGE = { dx: 18, dy: 25 }
+
 function chamfer(x, y, w, h, tl, tr, br, bl) {
   return [
     `M${x + tl.dx} ${y}`,
@@ -60,71 +70,137 @@ function chamfer(x, y, w, h, tl, tr, br, bl) {
   ].join(' ')
 }
 
-// Small cut top-left and bottom-right, large cut top-right and bottom-left.
 const OUTER = chamfer(0, 0, W, H, SMALL, LARGE, SMALL, LARGE)
+
 const INNER = chamfer(
   7,
-  6,
+  7,
   W - 14,
-  H - 12,
-  { dx: 5, dy: 9 },
-  { dx: 13, dy: 19 },
-  { dx: 5, dy: 9 },
-  { dx: 13, dy: 19 },
+  H - 14,
+  { dx: 5, dy: 10 },
+  { dx: 14, dy: 21 },
+  { dx: 5, dy: 10 },
+  { dx: 14, dy: 21 },
 )
+
+const INNER_SHADOW = chamfer(
+  10,
+  10,
+  W - 20,
+  H - 20,
+  { dx: 4, dy: 8 },
+  { dx: 11, dy: 17 },
+  { dx: 4, dy: 8 },
+  { dx: 11, dy: 17 },
+)
+
+/*
+ * ---------------------------------------------------------------------------
+ * Direction palettes
+ * ---------------------------------------------------------------------------
+ */
 
 const PALETTES = {
   up: {
     label: 'Up',
     ariaLabel: 'Predict the price will go up',
     mirror: false,
-    body: ['#0c5238', '#052a1c', '#04251a', '#0b603f'],
-    rim: '#37ff9e',
-    wisp: '#6dffc0',
-    chevron: ['#58f0b0', '#10b878'],
-    // Turned so the inner (right) edge recedes. Selected pops forward, pressed pushes in.
-    tilt: '[transform:perspective(420px)_rotateY(24deg)]',
-    tiltSelected: '[transform:perspective(420px)_rotateY(24deg)_translateZ(14px)]',
-    tiltPressed: 'active:[transform:perspective(420px)_rotateY(24deg)_translateZ(-8px)]',
-    glow: '[filter:drop-shadow(0_0_6px_rgba(52,255,160,0.35))_drop-shadow(0_14px_10px_rgba(0,0,0,0.55))]',
-    glowActive: '[filter:drop-shadow(0_0_16px_rgba(52,255,160,0.9))_drop-shadow(0_18px_12px_rgba(0,0,0,0.6))]',
-    chevronGlow: 'drop-shadow-[0_0_6px_rgba(52,255,160,0.55)]',
+
+    body: ['#06382a', '#031e17', '#020f0c', '#073b29'],
+
+    rim: '#31ff9a',
+    rimBright: '#8affcf',
+    plasma: '#43f6ad',
+
+    chevron: ['#65ffc0', '#0acb82'],
+
+    rail: '#27e9a0',
+    railBright: '#9affd2',
+
+    glow: 'drop-shadow-[0_0_7px_rgba(40,255,155,0.38)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
+
+    glowActive:
+      'drop-shadow-[0_0_18px_rgba(40,255,155,0.95)]_drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
+
+    chevronGlow:
+      'drop-shadow-[0_0_5px_rgba(60,255,170,0.8)]_drop-shadow-[0_0_12px_rgba(20,220,130,0.45)]',
+
+    tilt:
+      '[transform:perspective(520px)_rotateY(17deg)_translateZ(0)]',
+
+    tiltSelected:
+      '[transform:perspective(520px)_rotateY(17deg)_translateZ(15px)]',
+
+    tiltPressed:
+      'active:[transform:perspective(520px)_rotateY(17deg)_translateZ(-7px)]',
+
     focus: 'focus-visible:outline-emerald-300',
   },
+
   down: {
     label: 'Down',
     ariaLabel: 'Predict the price will go down',
     mirror: true,
-    body: ['#6a0b0f', '#2c0508', '#270507', '#760c11'],
-    rim: '#ff3b30',
-    wisp: '#ff7a6a',
-    chevron: ['#ff5545', '#d90d0d'],
-    tilt: '[transform:perspective(420px)_rotateY(-24deg)]',
-    tiltSelected: '[transform:perspective(420px)_rotateY(-24deg)_translateZ(14px)]',
-    tiltPressed: 'active:[transform:perspective(420px)_rotateY(-24deg)_translateZ(-8px)]',
-    glow: '[filter:drop-shadow(0_0_6px_rgba(255,60,50,0.35))_drop-shadow(0_14px_10px_rgba(0,0,0,0.55))]',
-    glowActive: '[filter:drop-shadow(0_0_16px_rgba(255,70,60,0.9))_drop-shadow(0_18px_12px_rgba(0,0,0,0.6))]',
-    chevronGlow: 'drop-shadow-[0_0_6px_rgba(255,60,50,0.55)]',
+
+    body: ['#4a080d', '#250306', '#110103', '#52080d'],
+
+    rim: '#ff332f',
+    rimBright: '#ff9188',
+    plasma: '#ff5148',
+
+    chevron: ['#ff6659', '#df1010'],
+
+    rail: '#ff3732',
+    railBright: '#ffaaa3',
+
+    glow: 'drop-shadow-[0_0_7px_rgba(255,50,45,0.4)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
+
+    glowActive:
+      'drop-shadow-[0_0_18px_rgba(255,55,45,0.95)]_drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
+
+    chevronGlow:
+      'drop-shadow-[0_0_5px_rgba(255,60,50,0.85)]_drop-shadow-[0_0_12px_rgba(220,20,20,0.5)]',
+
+    tilt:
+      '[transform:perspective(520px)_rotateY(-17deg)_translateZ(0)]',
+
+    tiltSelected:
+      '[transform:perspective(520px)_rotateY(-17deg)_translateZ(15px)]',
+
+    tiltPressed:
+      'active:[transform:perspective(520px)_rotateY(-17deg)_translateZ(-7px)]',
+
     focus: 'focus-visible:outline-red-300',
   },
 }
 
-// Top to bottom: the lowest chevron is the dimmest, for both directions.
-const CHEVRON_OPACITY = [1, 0.9, 0.5]
+const CHEVRON_OPACITY = [1, 0.92, 0.52]
+
+/*
+ * ---------------------------------------------------------------------------
+ * Main component
+ * ---------------------------------------------------------------------------
+ */
 
 /**
  * @param {object} props
- * @param {'up'|'down'} props.direction Which side this panel represents.
- * @param {boolean} props.disabled Blocks input (round running, etc.).
- * @param {boolean} props.selected This panel holds the player's prediction.
- * @param {boolean} props.dimmed The other panel was picked.
+ * @param {'up'|'down'} props.direction
+ * @param {boolean} props.disabled
+ * @param {boolean} props.selected
+ * @param {boolean} props.dimmed
  * @param {(direction: 'up'|'down') => void} props.onSelect
  * @returns {JSX.Element}
  */
-function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
+function SwipePanel({
+  direction,
+  disabled,
+  selected,
+  dimmed,
+  onSelect,
+}) {
   const palette = PALETTES[direction]
   const startY = useRef(null)
-  // useId contains colons, which are awkward inside url(#...).
+
   const id = `mf-${direction}-${useId().replace(/:/g, '')}`
 
   const handlePointerDown = (event) => {
@@ -134,24 +210,35 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
 
   const handlePointerUp = (event) => {
     if (startY.current === null) return
+
     const delta = event.clientY - startY.current
+
     startY.current = null
 
     const swiped =
-      direction === 'up' ? delta < -SWIPE_DISTANCE : delta > SWIPE_DISTANCE
+      direction === 'up'
+        ? delta < -SWIPE_DISTANCE
+        : delta > SWIPE_DISTANCE
+
     const tapped = Math.abs(delta) < TAP_TOLERANCE
 
-    if (!disabled && (swiped || tapped)) onSelect(direction)
+    if (!disabled && (swiped || tapped)) {
+      onSelect(direction)
+    }
   }
 
   const handleKeyboardClick = (event) => {
-    // Pointer taps are handled above; detail === 0 means keyboard activation.
-    if (event.detail === 0 && !disabled) onSelect(direction)
+    if (event.detail === 0 && !disabled) {
+      onSelect(direction)
+    }
   }
 
-  // Dimming is applied to each layer, not the button: opacity on the button
-  // would flatten its 3D layers.
-  const dim = dimmed ? 'opacity-40' : ''
+  /*
+   * Important:
+   * Do not apply opacity to the button itself.
+   * Doing so would flatten the stacked 3D extrusion.
+   */
+  const dim = dimmed ? 'opacity-35' : ''
 
   return (
     <button
@@ -176,6 +263,7 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
         outline-offset-4
         transition-transform
         duration-200
+        ease-out
         focus-visible:outline
         focus-visible:outline-2
         motion-reduce:transition-none
@@ -185,16 +273,48 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
         ${disabled && !selected ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}
     >
-      <Extrusion palette={palette} dim={dim} />
-      <PanelArtwork id={id} palette={palette} selected={selected} dim={dim} />
+      {/* Deep mechanical body */}
+      <Extrusion
+        palette={palette}
+        dim={dim}
+      />
 
-      {/* Chevrons, floating in front of the glass */}
+      {/* Main glass / metal artwork */}
+      <PanelArtwork
+        id={id}
+        palette={palette}
+        selected={selected}
+        dim={dim}
+      />
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Direction chevrons                                                 */}
+      {/* ----------------------------------------------------------------- */}
+
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute inset-x-0 top-[34%] flex justify-center transition-opacity duration-200 [transform:translateZ(10px)] ${dim}`}
+        className={`
+          pointer-events-none
+          absolute
+          inset-x-0
+          top-[31%]
+          flex
+          justify-center
+          transition-opacity
+          duration-200
+          [transform:translateZ(14px)]
+          ${dim}
+        `}
       >
         <span
-          className={`flex w-[40%] flex-col items-stretch -space-y-[2px] ${palette.chevronGlow}`}
+          className={`
+            flex
+            w-[53%]
+            flex-col
+            items-stretch
+            -space-y-[4px]
+            ${palette.chevronGlow}
+          `}
         >
           {CHEVRON_OPACITY.map((opacity, index) => (
             <Chevron
@@ -207,14 +327,50 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
         </span>
       </span>
 
-      {/* Label */}
+      {/* ----------------------------------------------------------------- */}
+      {/* Swipe label                                                        */}
+      {/* ----------------------------------------------------------------- */}
+
       <span
-        className={`pointer-events-none absolute inset-x-0 top-[68%] flex flex-col items-center leading-tight transition-opacity duration-200 [transform:translateZ(8px)] ${dim}`}
+        className={`
+          pointer-events-none
+          absolute
+          inset-x-0
+          top-[71%]
+          flex
+          flex-col
+          items-center
+          leading-none
+          transition-opacity
+          duration-200
+          [transform:translateZ(12px)]
+          ${dim}
+        `}
       >
-        <span className="text-[clamp(8px,2.4vw,10px)] font-semibold uppercase tracking-[0.1em] text-white/85 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+        <span
+          className="
+            text-[clamp(7px,2vw,9px)]
+            font-semibold
+            uppercase
+            tracking-[0.16em]
+            text-white/75
+            drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]
+          "
+        >
           Swipe
         </span>
-        <span className="text-[clamp(12px,3.5vw,15px)] font-bold uppercase tracking-[0.06em] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]">
+
+        <span
+          className="
+            mt-1
+            text-[clamp(12px,3.5vw,15px)]
+            font-black
+            uppercase
+            tracking-[0.08em]
+            text-white
+            drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]
+          "
+        >
           {palette.label}
         </span>
       </span>
@@ -222,13 +378,16 @@ function SwipePanel({ direction, disabled, selected, dimmed, onSelect }) {
   )
 }
 
-/**
- * Frame thickness: copies of the outline stacked behind the face, each one a
- * little deeper and darker. When the panel is turned, the offset between the
- * copies shows as a solid edge.
+/*
+ * ---------------------------------------------------------------------------
+ * 3D mechanical extrusion
+ * ---------------------------------------------------------------------------
  */
+
 function Extrusion({ palette, dim }) {
-  const flip = palette.mirror ? `translate(${W} 0) scale(-1 1)` : undefined
+  const flip = palette.mirror
+    ? `translate(${W} 0) scale(-1 1)`
+    : undefined
 
   return SLICE_SHADES.map((shade, index) => (
     <svg
@@ -236,17 +395,42 @@ function Extrusion({ palette, dim }) {
       aria-hidden="true"
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      style={{ transform: `translateZ(${-((index + 1) * DEPTH) / SLICES}px)` }}
-      className={`pointer-events-none absolute inset-0 h-full w-full overflow-visible transition-opacity duration-200 ${dim}`}
+      style={{
+        transform: `translateZ(-${
+          ((index + 1) * DEPTH) / SLICES
+        }px)`,
+      }}
+      className={`
+        pointer-events-none
+        absolute
+        inset-0
+        h-full
+        w-full
+        overflow-visible
+        transition-opacity
+        duration-200
+        ${dim}
+      `}
     >
       <g transform={flip}>
+        {/* Main extrusion shell */}
         <path
           d={OUTER}
           fill={shade}
           stroke={palette.rim}
-          strokeOpacity={index < 2 ? 0.45 : 0.12}
-          strokeWidth="0.8"
+          strokeOpacity={index < 2 ? 0.5 : 0.08}
+          strokeWidth="0.85"
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Deep horizontal bevel */}
+        <path
+          d={OUTER}
+          fill="none"
+          stroke="#000000"
+          strokeOpacity={0.38}
+          strokeWidth={index > 5 ? 1.4 : 0.8}
           vectorEffect="non-scaling-stroke"
         />
       </g>
@@ -254,29 +438,61 @@ function Extrusion({ palette, dim }) {
   ))
 }
 
-/**
- * Solid chevron. Gradient is defined once in the panel artwork.
+/*
+ * ---------------------------------------------------------------------------
+ * Chevron
+ * ---------------------------------------------------------------------------
  */
-function Chevron({ direction, gradientId, opacity }) {
+
+function Chevron({
+  direction,
+  gradientId,
+  opacity,
+}) {
   const points =
     direction === 'up'
-      ? '50,0 100,44 100,84 50,40 0,84 0,44'
-      : '50,84 100,40 100,0 50,44 0,0 0,40'
+      ? '50,0 100,45 100,84 50,39 0,84 0,45'
+      : '50,84 100,39 100,0 50,45 0,0 0,39'
 
   return (
-    <svg viewBox="0 0 100 84" className="block w-full" style={{ opacity }}>
-      <polygon points={points} fill={`url(#${gradientId})`} />
+    <svg
+      viewBox="0 0 100 84"
+      className="block w-full"
+      style={{ opacity }}
+    >
+      <polygon
+        points={points}
+        fill={`url(#${gradientId})`}
+      />
     </svg>
   )
 }
 
-/**
- * Frame, glass body, plasma texture and neon edge.
- * The Down panel draws the same art mirrored.
+/*
+ * ---------------------------------------------------------------------------
+ * Main panel artwork
+ * ---------------------------------------------------------------------------
  */
-function PanelArtwork({ id, palette, selected, dim }) {
-  const { body, rim, wisp, chevron, mirror } = palette
-  const flip = mirror ? `translate(${W} 0) scale(-1 1)` : undefined
+
+function PanelArtwork({
+  id,
+  palette,
+  selected,
+  dim,
+}) {
+  const {
+    body,
+    rim,
+    rimBright,
+    plasma,
+    rail,
+    railBright,
+    mirror,
+  } = palette
+
+  const flip = mirror
+    ? `translate(${W} 0) scale(-1 1)`
+    : undefined
 
   return (
     <svg
@@ -298,164 +514,770 @@ function PanelArtwork({ id, palette, selected, dim }) {
       `}
     >
       <defs>
-        {/* Steel frame */}
-        <linearGradient id={`${id}-frame`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#0a1d33" />
-          <stop offset="1" stopColor="#040912" />
-        </linearGradient>
-        <linearGradient id={`${id}-frame-edge`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#a6ecff" />
-          <stop offset="0.3" stopColor="#2a78b8" />
-          <stop offset="0.65" stopColor="#0b2f55" />
-          <stop offset="1" stopColor="#7fd4ff" />
+        {/* --------------------------------------------------------------- */}
+        {/* Outer metal                                                      */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-frame`}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor="#183c59"
+          />
+          <stop
+            offset="0.22"
+            stopColor="#0c263d"
+          />
+          <stop
+            offset="0.5"
+            stopColor="#061522"
+          />
+          <stop
+            offset="0.78"
+            stopColor="#0d2c45"
+          />
+          <stop
+            offset="1"
+            stopColor="#020811"
+          />
         </linearGradient>
 
-        {/* Glass body */}
-        <linearGradient id={`${id}-body`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={body[0]} />
-          <stop offset="0.4" stopColor={body[1]} />
-          <stop offset="0.7" stopColor={body[2]} />
-          <stop offset="1" stopColor={body[3]} />
+        <linearGradient
+          id={`${id}-frame-edge`}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor="#d8f8ff"
+          />
+          <stop
+            offset="0.16"
+            stopColor="#62cfff"
+          />
+          <stop
+            offset="0.35"
+            stopColor="#12527f"
+          />
+          <stop
+            offset="0.62"
+            stopColor="#06192b"
+          />
+          <stop
+            offset="0.86"
+            stopColor="#2e88bd"
+          />
+          <stop
+            offset="1"
+            stopColor="#9ceaff"
+          />
         </linearGradient>
 
-        {/* Brighter along the near edge, like the reference */}
-        <linearGradient id={`${id}-edge-glow`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor={rim} stopOpacity="0.45" />
-          <stop offset="0.3" stopColor={rim} stopOpacity="0" />
-          <stop offset="0.85" stopColor={rim} stopOpacity="0" />
-          <stop offset="1" stopColor={rim} stopOpacity="0.2" />
+        {/* --------------------------------------------------------------- */}
+        {/* Dark glass                                                       */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-body`}
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor={body[0]}
+          />
+          <stop
+            offset="0.18"
+            stopColor={body[1]}
+          />
+          <stop
+            offset="0.52"
+            stopColor={body[2]}
+          />
+          <stop
+            offset="0.78"
+            stopColor={body[1]}
+          />
+          <stop
+            offset="1"
+            stopColor={body[3]}
+          />
         </linearGradient>
 
-        {/* Soft plasma cloud */}
-        <radialGradient id={`${id}-cloud`}>
-          <stop offset="0" stopColor={rim} stopOpacity="0.5" />
-          <stop offset="0.6" stopColor={rim} stopOpacity="0.15" />
-          <stop offset="1" stopColor={rim} stopOpacity="0" />
+        {/* --------------------------------------------------------------- */}
+        {/* Glass vertical lighting                                          */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-glass-light`}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="0"
+        >
+          <stop
+            offset="0"
+            stopColor={rim}
+            stopOpacity="0.55"
+          />
+          <stop
+            offset="0.16"
+            stopColor={rim}
+            stopOpacity="0.08"
+          />
+          <stop
+            offset="0.5"
+            stopColor="#ffffff"
+            stopOpacity="0"
+          />
+          <stop
+            offset="0.84"
+            stopColor={rim}
+            stopOpacity="0.04"
+          />
+          <stop
+            offset="1"
+            stopColor={rim}
+            stopOpacity="0.34"
+          />
+        </linearGradient>
+
+        {/* --------------------------------------------------------------- */}
+        {/* Plasma                                                            */}
+        {/* --------------------------------------------------------------- */}
+
+        <radialGradient id={`${id}-plasma`}>
+          <stop
+            offset="0"
+            stopColor={plasma}
+            stopOpacity="0.46"
+          />
+          <stop
+            offset="0.42"
+            stopColor={plasma}
+            stopOpacity="0.18"
+          />
+          <stop
+            offset="1"
+            stopColor={plasma}
+            stopOpacity="0"
+          />
         </radialGradient>
 
-        {/* Star glint near the top */}
-        <radialGradient id={`${id}-star`}>
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
-          <stop offset="0.25" stopColor={wisp} stopOpacity="0.6" />
-          <stop offset="1" stopColor={wisp} stopOpacity="0" />
+        <radialGradient id={`${id}-plasma-soft`}>
+          <stop
+            offset="0"
+            stopColor={rim}
+            stopOpacity="0.22"
+          />
+          <stop
+            offset="1"
+            stopColor={rim}
+            stopOpacity="0"
+          />
         </radialGradient>
 
-        {/* Corner glint on the frame */}
-        <radialGradient id={`${id}-corner`}>
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
-          <stop offset="0.35" stopColor="#7fd8ff" stopOpacity="0.5" />
-          <stop offset="1" stopColor="#7fd8ff" stopOpacity="0" />
+        {/* --------------------------------------------------------------- */}
+        {/* Metallic bevel                                                   */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-bevel`}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor="#ffffff"
+            stopOpacity="0.7"
+          />
+          <stop
+            offset="0.18"
+            stopColor="#8de2ff"
+            stopOpacity="0.4"
+          />
+          <stop
+            offset="0.46"
+            stopColor="#ffffff"
+            stopOpacity="0.04"
+          />
+          <stop
+            offset="0.72"
+            stopColor="#000000"
+            stopOpacity="0.5"
+          />
+          <stop
+            offset="1"
+            stopColor="#000000"
+            stopOpacity="0.8"
+          />
+        </linearGradient>
+
+        {/* --------------------------------------------------------------- */}
+        {/* Glass reflection                                                 */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-gloss`}
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor="#ffffff"
+            stopOpacity="0.22"
+          />
+          <stop
+            offset="0.18"
+            stopColor="#ffffff"
+            stopOpacity="0.06"
+          />
+          <stop
+            offset="0.55"
+            stopColor="#ffffff"
+            stopOpacity="0"
+          />
+          <stop
+            offset="1"
+            stopColor="#000000"
+            stopOpacity="0.3"
+          />
+        </linearGradient>
+
+        {/* --------------------------------------------------------------- */}
+        {/* Side rail                                                        */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-rail`}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="0"
+        >
+          <stop
+            offset="0"
+            stopColor={rail}
+            stopOpacity="0"
+          />
+          <stop
+            offset="0.45"
+            stopColor={railBright}
+            stopOpacity="0.95"
+          />
+          <stop
+            offset="0.7"
+            stopColor={rail}
+            stopOpacity="0.45"
+          />
+          <stop
+            offset="1"
+            stopColor={rail}
+            stopOpacity="0"
+          />
+        </linearGradient>
+
+        {/* --------------------------------------------------------------- */}
+        {/* Neon rim                                                          */}
+        {/* --------------------------------------------------------------- */}
+
+        <linearGradient
+          id={`${id}-rim`}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor={rimBright}
+          />
+          <stop
+            offset="0.3"
+            stopColor={rim}
+          />
+          <stop
+            offset="0.7"
+            stopColor={rim}
+          />
+          <stop
+            offset="1"
+            stopColor={rimBright}
+          />
+        </linearGradient>
+
+        {/* --------------------------------------------------------------- */}
+        {/* Highlight                                                         */}
+        {/* --------------------------------------------------------------- */}
+
+        <radialGradient id={`${id}-glint`}>
+          <stop
+            offset="0"
+            stopColor="#ffffff"
+            stopOpacity="0.95"
+          />
+          <stop
+            offset="0.3"
+            stopColor={rimBright}
+            stopOpacity="0.65"
+          />
+          <stop
+            offset="1"
+            stopColor={rim}
+            stopOpacity="0"
+          />
         </radialGradient>
 
-        {/* Bevel light: bright top-left, dark bottom-right */}
-        <linearGradient id={`${id}-bevel`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.6" />
-          <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.05" />
-          <stop offset="1" stopColor="#000000" stopOpacity="0.5" />
-        </linearGradient>
-
-        {/* Glass reflection */}
-        <linearGradient id={`${id}-gloss`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.2" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-
-        {/* Amber side tabs */}
-        <linearGradient id={`${id}-amber`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffb23c" />
-          <stop offset="1" stopColor="#b8650d" />
-        </linearGradient>
-
-        {/* Chevron fill, shared with the chevron SVGs */}
-        <linearGradient id={`${id}-chevron`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={chevron[0]} />
-          <stop offset="1" stopColor={chevron[1]} />
-        </linearGradient>
-
-        <filter id={`${id}-soft`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="1.6" />
+        <filter
+          id={`${id}-soft`}
+          x="-40%"
+          y="-20%"
+          width="180%"
+          height="140%"
+        >
+          <feGaussianBlur stdDeviation="1.8" />
         </filter>
+
+        <filter
+          id={`${id}-strong`}
+          x="-50%"
+          y="-30%"
+          width="200%"
+          height="160%"
+        >
+          <feGaussianBlur stdDeviation="3" />
+        </filter>
+
         <clipPath id={`${id}-inner`}>
           <path d={INNER} />
         </clipPath>
+
+        <clipPath id={`${id}-shadow`}>
+          <path d={INNER_SHADOW} />
+        </clipPath>
+
+        {/* Shared chevron gradient */}
+        <linearGradient
+          id={`${id}-chevron`}
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop
+            offset="0"
+            stopColor={palette.chevron[0]}
+          />
+          <stop
+            offset="1"
+            stopColor={palette.chevron[1]}
+          />
+        </linearGradient>
       </defs>
 
       <g transform={flip}>
-        {/* Amber tabs, half hidden behind the frame */}
-        {[76, 190].map((y) => (
-          <g key={y}>
-            <rect x="-1.4" y={y} width="3" height={y === 76 ? 26 : 22} rx="1.3" fill={`url(#${id}-amber)`} />
-            <rect x={W - 1.6} y={y} width="3" height={y === 76 ? 14 : 22} rx="1.3" fill={`url(#${id}-amber)`} />
-          </g>
-        ))}
+        {/* =============================================================== */}
+        {/* Mechanical side tabs                                             */}
+        {/* =============================================================== */}
 
-        {/* Steel frame */}
+        <g>
+          <rect
+            x="-1.5"
+            y="67"
+            width="4"
+            height="31"
+            rx="1.5"
+            fill="#b86616"
+            opacity="0.8"
+          />
+
+          <rect
+            x={W - 2.5}
+            y="67"
+            width="4"
+            height="31"
+            rx="1.5"
+            fill="#d78320"
+            opacity="0.75"
+          />
+
+          <rect
+            x="-1.5"
+            y="199"
+            width="4"
+            height="31"
+            rx="1.5"
+            fill="#a95813"
+            opacity="0.7"
+          />
+
+          <rect
+            x={W - 2.5}
+            y="199"
+            width="4"
+            height="31"
+            rx="1.5"
+            fill="#c87318"
+            opacity="0.7"
+          />
+        </g>
+
+        {/* =============================================================== */}
+        {/* Outer metal chassis                                              */}
+        {/* =============================================================== */}
+
         <path
           d={OUTER}
           fill={`url(#${id}-frame)`}
           stroke={`url(#${id}-frame-edge)`}
-          strokeWidth="1.3"
+          strokeWidth="1.45"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
+
+        {/* Outer dark recess */}
         <path
-          d={chamfer(2.5, 2.2, W - 5, H - 4.4, { dx: 6, dy: 10 }, { dx: 15, dy: 21 }, { dx: 6, dy: 10 }, { dx: 15, dy: 21 })}
+          d={chamfer(
+            2.2,
+            2.2,
+            W - 4.4,
+            H - 4.4,
+            { dx: 7, dy: 11 },
+            { dx: 16, dy: 23 },
+            { dx: 7, dy: 11 },
+            { dx: 16, dy: 23 },
+          )}
           fill="none"
-          stroke="#37a8e8"
-          strokeOpacity="0.35"
-          strokeWidth="0.7"
+          stroke="#02070d"
+          strokeOpacity="0.8"
+          strokeWidth="1.2"
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Bevel: lit edge on the frame's top-left, shaded bottom-right */}
+        {/* Outer metallic highlight */}
         <path
-          d={chamfer(1.1, 1.1, W - 2.2, H - 2.2, { dx: 7.5, dy: 11 }, { dx: 16, dy: 22 }, { dx: 7.5, dy: 11 }, { dx: 16, dy: 22 })}
+          d={chamfer(
+            1.1,
+            1.1,
+            W - 2.2,
+            H - 2.2,
+            { dx: 7.5, dy: 11.5 },
+            { dx: 16.5, dy: 23 },
+            { dx: 7.5, dy: 11.5 },
+            { dx: 16.5, dy: 23 },
+          )}
           fill="none"
           stroke={`url(#${id}-bevel)`}
-          strokeWidth="1.1"
+          strokeWidth="1.15"
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Glass body and plasma */}
-        <path d={INNER} fill={`url(#${id}-body)`} />
+        {/* =============================================================== */}
+        {/* Glass interior                                                   */}
+        {/* =============================================================== */}
+
+        <path
+          d={INNER}
+          fill={`url(#${id}-body)`}
+        />
+
         <g clipPath={`url(#${id}-inner)`}>
-          <rect x="0" y="0" width={W} height={H} fill={`url(#${id}-edge-glow)`} />
+          {/* Vertical glass illumination */}
+          <rect
+            x="0"
+            y="0"
+            width={W}
+            height={H}
+            fill={`url(#${id}-glass-light)`}
+          />
 
-          {/* Plasma clouds, top and bottom */}
-          <ellipse cx="62" cy="40" rx="36" ry="52" fill={`url(#${id}-cloud)`} />
-          <ellipse cx="24" cy="262" rx="38" ry="54" fill={`url(#${id}-cloud)`} />
+          {/* Deep central shadow */}
+          <ellipse
+            cx="44"
+            cy="154"
+            rx="29"
+            ry="132"
+            fill="#000000"
+            opacity="0.18"
+          />
 
-          {/* Wisps: a soft copy for the glow, a thin copy for the line */}
+          {/* Plasma cloud upper */}
+          <ellipse
+            cx="65"
+            cy="45"
+            rx="38"
+            ry="54"
+            fill={`url(#${id}-plasma)`}
+          />
+
+          {/* Plasma cloud lower */}
+          <ellipse
+            cx="22"
+            cy="257"
+            rx="38"
+            ry="58"
+            fill={`url(#${id}-plasma)`}
+          />
+
+          {/* Central atmospheric glow */}
+          <ellipse
+            cx="44"
+            cy="151"
+            rx="32"
+            ry="92"
+            fill={`url(#${id}-plasma-soft)`}
+            opacity="0.55"
+          />
+
+          {/* ============================================================= */}
+          {/* Plasma wisps                                                    */}
+          {/* ============================================================= */}
+
           {[
-            ['M20 40 C40 72 70 56 80 24', 1],
-            ['M10 124 C30 92 60 112 78 66', 0.75],
-            ['M68 150 C50 182 30 170 12 208', 0.6],
-            ['M14 272 C30 240 60 252 80 214', 0.85],
-            ['M34 12 C28 40 46 60 40 96', 0.55],
-            ['M8 60 C24 90 20 130 34 160', 0.5],
-            ['M80 100 C60 130 70 170 50 200', 0.45],
+            ['M18 37 C36 65 66 62 80 24', 1],
+            ['M8 86 C30 72 55 90 78 55', 0.72],
+            ['M9 131 C31 105 56 120 79 84', 0.6],
+            ['M77 116 C55 140 60 169 31 192', 0.6],
+            ['M72 159 C52 183 30 177 11 218', 0.8],
+            ['M11 270 C29 240 58 253 79 215', 0.9],
+            ['M35 12 C27 42 47 60 41 94', 0.55],
+            ['M78 210 C61 229 59 255 43 284', 0.45],
           ].map(([d, opacity]) => (
-            <g key={d} opacity={opacity}>
-              <path d={d} fill="none" stroke={wisp} strokeWidth="2.6" filter={`url(#${id}-soft)`} />
-              <path d={d} fill="none" stroke={wisp} strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
+            <g
+              key={d}
+              opacity={opacity}
+            >
+              <path
+                d={d}
+                fill="none"
+                stroke={plasma}
+                strokeWidth="3.2"
+                filter={`url(#${id}-soft)`}
+              />
+
+              <path
+                d={d}
+                fill="none"
+                stroke={plasma}
+                strokeWidth="0.85"
+                vectorEffect="non-scaling-stroke"
+              />
             </g>
           ))}
 
-          {/* Curved reflection across the top of the glass */}
-          <path d={`M0 0 H${W} V84 C62 66 30 98 0 150 Z`} fill={`url(#${id}-gloss)`} />
+          {/* ============================================================= */}
+          {/* Upper glass reflection                                          */}
+          {/* ============================================================= */}
 
-          {/* Star glint */}
-          <circle cx="66" cy="34" r="12" fill={`url(#${id}-star)`} />
-          <path d="M58 34 H74 M66 26 V42" stroke="#ffffff" strokeOpacity="0.8" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+          <path
+            d={`
+              M0 0
+              H${W}
+              V86
+              C64 67 33 88 0 142
+              Z
+            `}
+            fill={`url(#${id}-gloss)`}
+          />
+
+          {/* Thin diagonal glass reflection */}
+          <path
+            d="M10 26 C29 50 49 61 76 39"
+            fill="none"
+            stroke="#ffffff"
+            strokeOpacity="0.1"
+            strokeWidth="1"
+          />
+
+          {/* ============================================================= */}
+          {/* Central vertical glass streak                                   */}
+          {/* ============================================================= */}
+
+          <rect
+            x="43"
+            y="0"
+            width="1"
+            height={H}
+            fill={rimBright}
+            opacity="0.07"
+          />
+
+          {/* ============================================================= */}
+          {/* Floating glints                                                  */}
+          {/* ============================================================= */}
+
+          <circle
+            cx="65"
+            cy="34"
+            r="12"
+            fill={`url(#${id}-glint)`}
+          />
+
+          <path
+            d="M58 34 H72 M65 27 V41"
+            stroke="#ffffff"
+            strokeOpacity="0.85"
+            strokeWidth="0.65"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          <circle
+            cx="22"
+            cy="244"
+            r="7"
+            fill={`url(#${id}-glint)`}
+            opacity="0.45"
+          />
+
+          {/* ============================================================= */}
+          {/* Glass lower shadow                                              */}
+          {/* ============================================================= */}
+
+          <path
+            d={INNER_SHADOW}
+            fill="#000000"
+            opacity="0.14"
+          />
         </g>
 
-        {/* Neon edge: soft copy for the glow, crisp copy for the line */}
-        <path d={INNER} fill="none" stroke={rim} strokeWidth="3" strokeOpacity="0.55" filter={`url(#${id}-soft)`} />
-        <path d={INNER} fill="none" stroke={rim} strokeWidth="1.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {/* =============================================================== */}
+        {/* Inner neon rim glow                                               */}
+        {/* =============================================================== */}
 
-        {/* Specular glints on the steel */}
-        <circle cx="10" cy="7" r="9" fill={`url(#${id}-corner)`} />
-        <circle cx={W - 14} cy={H - 6} r="6" fill={`url(#${id}-corner)`} opacity="0.7" />
+        <path
+          d={INNER}
+          fill="none"
+          stroke={rim}
+          strokeWidth="4"
+          strokeOpacity="0.48"
+          filter={`url(#${id}-strong)`}
+        />
+
+        <path
+          d={INNER}
+          fill="none"
+          stroke={`url(#${id}-rim)`}
+          strokeWidth="1.55"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* =============================================================== */}
+        {/* Structural side rails                                             */}
+        {/* =============================================================== */}
+
+        {/* Left rail glow */}
+        <path
+          d="M8 28 L8 272"
+          fill="none"
+          stroke={rail}
+          strokeWidth="3"
+          strokeOpacity="0.22"
+          filter={`url(#${id}-soft)`}
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Left rail core */}
+        <path
+          d="M8 31 L8 269"
+          fill="none"
+          stroke={`url(#${id}-rail)`}
+          strokeWidth="0.9"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Right rail glow */}
+        <path
+          d="M80 28 L80 272"
+          fill="none"
+          stroke={rail}
+          strokeWidth="3"
+          strokeOpacity="0.22"
+          filter={`url(#${id}-soft)`}
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Right rail core */}
+        <path
+          d="M80 31 L80 269"
+          fill="none"
+          stroke={`url(#${id}-rail)`}
+          strokeWidth="0.9"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* =============================================================== */}
+        {/* Mechanical horizontal separators                                  */}
+        {/* =============================================================== */}
+
+        {[66, 229].map((y) => (
+          <g key={y}>
+            <path
+              d={`M11 ${y} H77`}
+              stroke="#000000"
+              strokeOpacity="0.7"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+
+            <path
+              d={`M14 ${y - 1} H74`}
+              stroke={rail}
+              strokeOpacity="0.28"
+              strokeWidth="0.7"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ))}
+
+        {/* =============================================================== */}
+        {/* Small mechanical corner lights                                    */}
+        {/* =============================================================== */}
+
+        <circle
+          cx="9"
+          cy="10"
+          r="6"
+          fill={`url(#${id}-glint)`}
+          opacity="0.75"
+        />
+
+        <circle
+          cx={W - 9}
+          cy="10"
+          r="5"
+          fill={`url(#${id}-glint)`}
+          opacity="0.45"
+        />
+
+        <circle
+          cx="9"
+          cy={H - 10}
+          r="5"
+          fill={`url(#${id}-glint)`}
+          opacity="0.4"
+        />
+
+        <circle
+          cx={W - 9}
+          cy={H - 10}
+          r="7"
+          fill={`url(#${id}-glint)`}
+          opacity="0.65"
+        />
       </g>
     </svg>
   )
