@@ -5,27 +5,77 @@
  * Market Flux game screen.
  *
  * Layout, top to bottom:
- * header, market ticker, play area (Up panel / ladder / Down panel),
- * prediction bar, stake control.
+ * header, market ticker, central market-number play area,
+ * UP/DOWN direction buttons, prediction bar, stake control.
  *
- * The viewport, background artwork and max width are owned by AppShell.
+ * The game engine is owned by useMarketSimulation().
+ * This component is responsible only for composing the UI.
+ *
+ * GAME FLOW
+ * ---------------------------------------------------------------------------
+ * 1. Market value continuously updates.
+ * 2. Player clicks UP or DOWN.
+ * 3. The click commits the prediction and locks the stake.
+ * 4. The market continues moving.
+ * 5. The final value is revealed by MarketNumberSpinner.
+ * 6. The engine applies the result after the reveal.
  */
 
 import MarketFluxHeader from './components/MarketFluxHeader'
 import MarketTicker from './components/MarketTicker'
-import MultiplierLadder, { BonusBadge } from './components/MultiplierLadder'
+import MarketNumberSpinner from './components/MarketNumberSpinner'
+import MultiplierLadder, {
+  BonusBadge,
+} from './components/MultiplierLadder'
 import PredictionBar from './components/PredictionBar'
 import StakeControl from './components/StakeControl'
 import SwipePanel from './components/SwipePanel'
-import { TOP_STEP, useMarketSimulation } from './hooks/useMarketSimulation'
+import {
+  TOP_STEP,
+  useMarketSimulation,
+} from './hooks/useMarketSimulation'
 
 function MarketFlux() {
   const game = useMarketSimulation()
-  const roundActive = game.phase !== 'idle'
+
+  /**
+   * A prediction is considered committed once the player
+   * has left the idle phase.
+   */
+  const roundActive =
+    game.phase !== 'idle'
+
+  /**
+   * Market definitions are expected to expose their decimal
+   * precision. Fall back to two decimals for markets that do
+   * not explicitly define it.
+   */
+  const decimals =
+    game.market?.decimals ?? 2
 
   return (
-    <div className="flex min-h-dvh w-full flex-col gap-3 pb-4">
-      <MarketFluxHeader balance={game.balance} />
+    <div
+      className="
+        flex
+        min-h-0
+        w-full
+        flex-1
+        flex-col
+        gap-3
+        pb-3
+      "
+    >
+      {/* ================================================================== */}
+      {/* Header                                                             */}
+      {/* ================================================================== */}
+
+      <MarketFluxHeader
+        balance={game.balance}
+      />
+
+      {/* ================================================================== */}
+      {/* Market ticker                                                      */}
+      {/* ================================================================== */}
 
       <MarketTicker
         market={game.market}
@@ -36,50 +86,135 @@ function MarketFlux() {
         onSelect={game.selectMarket}
       />
 
-      {/* Play area: bonus above the ladder capsule, slim panels either side.
-          Proportions follow the reference: side panels ~21% of the width, the
-          capsule ~27%, gaps ~8.5%, margins ~7%. */}
+      {/* ================================================================== */}
+      {/* Main play area                                                     */}
+      {/* ================================================================== */}
+
       <section
-        aria-label="Prediction"
+        aria-label="Market Flux play area"
         className="
-          grid
+          flex
+          min-h-0
           flex-1
-          grid-cols-[minmax(0,21fr)_minmax(0,26.6fr)_minmax(0,21fr)]
-          grid-rows-[auto_minmax(0,1fr)]
-          gap-x-[9.9%]
-          gap-y-0
+          flex-col
           px-[7.2%]
-          pb-3
         "
       >
-        <div className="relative z-10 col-start-2 row-start-1 -mb-2 flex justify-center">
-          <BonusBadge reached={game.step === TOP_STEP} />
-        </div>
+        {/* ---------------------------------------------------------------- */}
+        {/* Bonus badge                                                      */}
+        {/* ---------------------------------------------------------------- */}
 
-        <div className="col-start-1 row-start-2 min-h-[270px]">
-          <SwipePanel
-            direction="up"
-            disabled={!game.canPredict}
-            selected={roundActive && game.prediction === 'up'}
-            dimmed={roundActive && game.prediction === 'down'}
-            onSelect={game.predict}
+        <div
+          className="
+            relative
+            z-10
+            flex
+            shrink-0
+            justify-center
+          "
+        >
+          <BonusBadge
+            reached={
+              game.step === TOP_STEP
+            }
           />
         </div>
 
-        <div className="col-start-2 row-start-2">
-          <MultiplierLadder step={game.step} />
+        {/* ---------------------------------------------------------------- */}
+        {/* Central game display                                             */}
+        {/* ---------------------------------------------------------------- */}
+
+        <div
+          className="
+            flex
+            min-h-0
+            flex-1
+            flex-col
+            items-center
+            justify-center
+            gap-3
+            py-2
+          "
+        >
+          {/* -------------------------------------------------------------- */}
+          {/* Multiplier ladder                                              */}
+          {/* -------------------------------------------------------------- */}
+
+          <div className="w-full shrink-0">
+            <MultiplierLadder
+              step={game.step}
+            />
+          </div>
+
+          {/* -------------------------------------------------------------- */}
+          {/* Market number spinner                                          */}
+          {/* -------------------------------------------------------------- */}
+
+          <div
+            className="
+              flex
+              min-h-0
+              w-full
+              flex-1
+              items-center
+              justify-center
+            "
+          >
+            <MarketNumberSpinner
+              value={game.price}
+              decimals={decimals}
+              tease={game.teasing}
+            />
+          </div>
         </div>
 
-        <div className="col-start-3 row-start-2 min-h-[270px]">
+        {/* ---------------------------------------------------------------- */}
+        {/* Direction controls                                               */}
+        {/* ---------------------------------------------------------------- */}
+
+        <div
+          className="
+            grid
+            w-full
+            shrink-0
+            grid-cols-2
+            gap-3
+            pt-2
+          "
+        >
+          <SwipePanel
+            direction="up"
+            disabled={!game.canSpin}
+            selected={
+              roundActive &&
+              game.prediction === 'up'
+            }
+            dimmed={
+              roundActive &&
+              game.prediction === 'down'
+            }
+            onSelect={game.spin}
+          />
+
           <SwipePanel
             direction="down"
-            disabled={!game.canPredict}
-            selected={roundActive && game.prediction === 'down'}
-            dimmed={roundActive && game.prediction === 'up'}
-            onSelect={game.predict}
+            disabled={!game.canSpin}
+            selected={
+              roundActive &&
+              game.prediction === 'down'
+            }
+            dimmed={
+              roundActive &&
+              game.prediction === 'up'
+            }
+            onSelect={game.spin}
           />
         </div>
       </section>
+
+      {/* ================================================================== */}
+      {/* Round / market status                                              */}
+      {/* ================================================================== */}
 
       <PredictionBar
         changePct={game.changePct}
@@ -90,6 +225,10 @@ function MarketFlux() {
         elapsed={game.elapsed}
         outcome={game.outcome}
       />
+
+      {/* ================================================================== */}
+      {/* Stake control                                                       */}
+      {/* ================================================================== */}
 
       <StakeControl
         stake={game.stake}
