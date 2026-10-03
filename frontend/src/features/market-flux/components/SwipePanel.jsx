@@ -4,35 +4,33 @@
  * @description
  * 3D liquid-glass prediction control for Market Flux.
  *
- * Visual direction:
- * - Tall, narrow mechanical control inspired by the Wave-Ride reference.
- * - Heavy dark-metal extrusion gives the panel physical depth.
- * - Deep glass interior with green/red plasma.
- * - Bright neon inner rim and structural side rails.
- * - Three large directional chevrons floating above the glass.
- * - Swipe gesture produces a directional confirmation animation.
- * - Compact SWIPE UP / SWIPE DOWN label near the lower section.
- *
  * Interaction:
- * - Swipe upward   -> Up + directional swipe animation
- * - Swipe downward -> Down + directional swipe animation
- * - Tap / click    -> Select without swipe animation
- * - Enter / Space  -> Select without swipe animation
+ * - Swipe upward   -> Up prediction
+ * - Swipe downward -> Down prediction
+ * - Tap / click    -> Select
+ * - Enter / Space  -> Select
  *
- * The Down panel mirrors the Up panel.
+ * Swipe feedback:
+ * - The directional chevrons charge as the finger moves.
+ * - The glass shell brightens as the swipe approaches commitment.
+ * - A completed swipe snaps the chevrons in the swipe direction.
+ * - The panel briefly enters a LOCKED state.
+ *
+ * Visual direction:
+ * - Tall carved-glass outer shell.
+ * - Heavy dark-metal extrusion.
+ * - Deep transparent glass interior.
+ * - Green / red plasma depending on direction.
+ * - Bright neon inner rim.
+ * - Large directional chevrons.
+ * - Mechanical side rails.
+ * - Physical pressed / selected depth.
  */
 
 import { useEffect, useId, useRef, useState } from 'react'
 
 const SWIPE_DISTANCE = 36
 const TAP_TOLERANCE = 10
-const SWIPE_FEEDBACK_MS = 520
-
-/*
- * ---------------------------------------------------------------------------
- * Mechanical geometry
- * ---------------------------------------------------------------------------
- */
 
 const W = 88
 const H = 300
@@ -96,12 +94,6 @@ const INNER_SHADOW = chamfer(
   { dx: 11, dy: 17 },
 )
 
-/*
- * ---------------------------------------------------------------------------
- * Direction palettes
- * ---------------------------------------------------------------------------
- */
-
 const PALETTES = {
   up: {
     label: 'Up',
@@ -120,13 +112,13 @@ const PALETTES = {
     railBright: '#9affd2',
 
     glow:
-      'drop-shadow-[0_0_7px_rgba(40,255,155,0.38)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
+      'drop-shadow-[0_0_7px_rgba(40,255,155,0.38)] drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
 
     glowActive:
-      'drop-shadow-[0_0_18px_rgba(40,255,155,0.95)]_drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
+      'drop-shadow-[0_0_18px_rgba(40,255,155,0.95)] drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
 
     chevronGlow:
-      'drop-shadow-[0_0_5px_rgba(60,255,170,0.8)]_drop-shadow-[0_0_12px_rgba(20,220,130,0.45)]',
+      'drop-shadow-[0_0_5px_rgba(60,255,170,0.8)] drop-shadow-[0_0_12px_rgba(20,220,130,0.45)]',
 
     tilt:
       '[transform:perspective(520px)_rotateY(17deg)_translateZ(0)]',
@@ -157,13 +149,13 @@ const PALETTES = {
     railBright: '#ffaaa3',
 
     glow:
-      'drop-shadow-[0_0_7px_rgba(255,50,45,0.4)]_drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
+      'drop-shadow-[0_0_7px_rgba(255,50,45,0.4)] drop-shadow-[0_15px_14px_rgba(0,0,0,0.7)]',
 
     glowActive:
-      'drop-shadow-[0_0_18px_rgba(255,55,45,0.95)]_drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
+      'drop-shadow-[0_0_18px_rgba(255,55,45,0.95)] drop-shadow-[0_20px_18px_rgba(0,0,0,0.75)]',
 
     chevronGlow:
-      'drop-shadow-[0_0_5px_rgba(255,60,50,0.85)]_drop-shadow-[0_0_12px_rgba(220,20,20,0.5)]',
+      'drop-shadow-[0_0_5px_rgba(255,60,50,0.85)] drop-shadow-[0_0_12px_rgba(220,20,20,0.5)]',
 
     tilt:
       '[transform:perspective(520px)_rotateY(-17deg)_translateZ(0)]',
@@ -180,21 +172,6 @@ const PALETTES = {
 
 const CHEVRON_OPACITY = [1, 0.92, 0.52]
 
-/*
- * ---------------------------------------------------------------------------
- * Main component
- * ---------------------------------------------------------------------------
- */
-
-/**
- * @param {object} props
- * @param {'up'|'down'} props.direction
- * @param {boolean} props.disabled
- * @param {boolean} props.selected
- * @param {boolean} props.dimmed
- * @param {(direction: 'up'|'down') => void} props.onSelect
- * @returns {JSX.Element}
- */
 function SwipePanel({
   direction,
   disabled,
@@ -203,50 +180,64 @@ function SwipePanel({
   onSelect,
 }) {
   const palette = PALETTES[direction]
-  const startY = useRef(null)
-  const feedbackTimer = useRef(null)
 
-  const [swipeFeedback, setSwipeFeedback] = useState(false)
+  const startY = useRef(null)
+  const tracking = useRef(false)
+
+  const [swipeProgress, setSwipeProgress] = useState(0)
+  const [feedback, setFeedback] = useState('idle')
 
   const id = `mf-${direction}-${useId().replace(/:/g, '')}`
 
   /*
-   * Clean up the feedback timer when the component unmounts.
+   * Keep the visual LOCKED state aligned with the actual game state.
+   * Once the parent marks the panel selected, the commitment remains visible.
    */
   useEffect(() => {
-    return () => {
-      if (feedbackTimer.current) {
-        clearTimeout(feedbackTimer.current)
-      }
+    if (selected) {
+      setFeedback('locked')
+      setSwipeProgress(1)
+    } else if (feedback === 'locked') {
+      setFeedback('idle')
+      setSwipeProgress(0)
     }
-  }, [])
-
-  /*
-   * Trigger the short directional confirmation animation.
-   *
-   * The animation is deliberately local to the panel. The game state does
-   * not need to know about it because it is purely interaction feedback.
-   */
-  const triggerSwipeFeedback = () => {
-    if (feedbackTimer.current) {
-      clearTimeout(feedbackTimer.current)
-    }
-
-    setSwipeFeedback(false)
-
-    requestAnimationFrame(() => {
-      setSwipeFeedback(true)
-
-      feedbackTimer.current = setTimeout(() => {
-        setSwipeFeedback(false)
-      }, SWIPE_FEEDBACK_MS)
-    })
-  }
+  }, [selected, feedback])
 
   const handlePointerDown = (event) => {
+    if (disabled) return
+
     startY.current = event.clientY
+    tracking.current = true
+
+    setFeedback('tracking')
+    setSwipeProgress(0)
 
     event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  const handlePointerMove = (event) => {
+    if (!tracking.current || startY.current === null || disabled) return
+
+    const delta = event.clientY - startY.current
+
+    /*
+     * Convert the finger movement into a 0 -> 1 commitment amount.
+     *
+     * Up:
+     *   finger moves negative
+     *
+     * Down:
+     *   finger moves positive
+     */
+    const intendedDistance =
+      direction === 'up' ? -delta : delta
+
+    const progress = Math.max(
+      0,
+      Math.min(1, intendedDistance / SWIPE_DISTANCE),
+    )
+
+    setSwipeProgress(progress)
   }
 
   const handlePointerUp = (event) => {
@@ -255,6 +246,7 @@ function SwipePanel({
     const delta = event.clientY - startY.current
 
     startY.current = null
+    tracking.current = false
 
     const swiped =
       direction === 'up'
@@ -263,44 +255,86 @@ function SwipePanel({
 
     const tapped = Math.abs(delta) < TAP_TOLERANCE
 
+    if (disabled) {
+      setSwipeProgress(0)
+      setFeedback('idle')
+      return
+    }
+
     /*
-     * Real swipe:
-     * 1. Show the directional gesture feedback.
-     * 2. Commit the prediction.
+     * A completed swipe becomes a visible commitment.
      */
-    if (!disabled && swiped) {
-      triggerSwipeFeedback()
+    if (swiped) {
+      setSwipeProgress(1)
+      setFeedback('locked')
       onSelect(direction)
       return
     }
 
     /*
-     * Tap:
-     * Commit normally, but do NOT play the swipe animation.
+     * Tapping still works, but does not pretend to be a swipe.
      */
-    if (!disabled && tapped) {
+    if (tapped) {
+      setSwipeProgress(0)
+      setFeedback('locked')
       onSelect(direction)
+      return
     }
+
+    /*
+     * An incomplete / wrong-direction gesture cancels.
+     */
+    setSwipeProgress(0)
+    setFeedback('idle')
+  }
+
+  const handlePointerCancel = () => {
+    startY.current = null
+    tracking.current = false
+    setSwipeProgress(0)
+    setFeedback('idle')
   }
 
   const handleKeyboardClick = (event) => {
     if (event.detail === 0 && !disabled) {
+      setFeedback('locked')
+      setSwipeProgress(1)
       onSelect(direction)
     }
   }
 
-  /*
-   * Important:
-   * Do not apply opacity to the button itself.
-   * Doing so would flatten the stacked 3D extrusion.
-   */
   const dim = dimmed ? 'opacity-35' : ''
 
-  const swipeAnimation = swipeFeedback
-    ? direction === 'up'
-      ? 'swipe-confirm-up'
-      : 'swipe-confirm-down'
-    : ''
+  const isTracking = feedback === 'tracking'
+  const isLocked = feedback === 'locked' || selected
+
+  /*
+   * The visual response gets stronger as the finger approaches the
+   * commitment threshold.
+   */
+  const energy = Math.max(
+    0,
+    Math.min(1, swipeProgress),
+  )
+
+  const arrowTranslate =
+    direction === 'up'
+      ? -14 * energy
+      : 14 * energy
+
+  const arrowScale = 1 + energy * 0.08
+
+  const arrowStyle = {
+    transform: `
+      translateZ(14px)
+      translateY(${arrowTranslate}px)
+      scale(${arrowScale})
+    `,
+    transition:
+      isTracking || isLocked
+        ? 'transform 90ms ease-out, filter 120ms ease-out'
+        : 'transform 180ms ease-out',
+  }
 
   return (
     <button
@@ -309,13 +343,11 @@ function SwipePanel({
       aria-pressed={selected}
       disabled={disabled}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={() => {
-        startY.current = null
-      }}
+      onPointerCancel={handlePointerCancel}
       onClick={handleKeyboardClick}
       className={`
-        group
         relative
         block
         h-full
@@ -330,39 +362,58 @@ function SwipePanel({
         focus-visible:outline
         focus-visible:outline-2
         motion-reduce:transition-none
-        ${selected ? palette.tiltSelected : palette.tilt}
+        ${isLocked ? palette.tiltSelected : palette.tilt}
         ${palette.tiltPressed}
         ${palette.focus}
         ${disabled && !selected ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}
     >
-      {/* Deep mechanical body */}
+      {/* =============================================================== */}
+      {/* Glass outer shell                                                */}
+      {/* =============================================================== */}
+
+      <GlassShell
+        palette={palette}
+        energy={energy}
+        locked={isLocked}
+        dim={dim}
+      />
+
+      {/* =============================================================== */}
+      {/* Deep mechanical extrusion                                        */}
+      {/* =============================================================== */}
+
       <Extrusion
         palette={palette}
         dim={dim}
       />
 
-      {/* Main glass / metal artwork */}
+      {/* =============================================================== */}
+      {/* Main glass artwork                                               */}
+      {/* =============================================================== */}
+
       <PanelArtwork
         id={id}
         palette={palette}
-        selected={selected}
+        selected={selected || isLocked}
         dim={dim}
+        energy={energy}
       />
 
-      {/* ----------------------------------------------------------------- */}
-      {/* Swipe energy trail                                                 */}
-      {/* ----------------------------------------------------------------- */}
+      {/* =============================================================== */}
+      {/* Swipe energy layer                                               */}
+      {/* =============================================================== */}
 
       <SwipeEnergy
         palette={palette}
-        visible={swipeFeedback}
+        energy={energy}
         direction={direction}
+        locked={isLocked}
       />
 
-      {/* ----------------------------------------------------------------- */}
-      {/* Direction chevrons                                                 */}
-      {/* ----------------------------------------------------------------- */}
+      {/* =============================================================== */}
+      {/* Direction chevrons                                               */}
+      {/* =============================================================== */}
 
       <span
         aria-hidden="true"
@@ -373,10 +424,9 @@ function SwipePanel({
           top-[31%]
           flex
           justify-center
-          [transform:translateZ(14px)]
           ${dim}
-          ${swipeAnimation}
         `}
+        style={arrowStyle}
       >
         <span
           className={`
@@ -385,112 +435,418 @@ function SwipePanel({
             flex-col
             items-stretch
             -space-y-[4px]
+            transition-[filter]
+            duration-150
             ${palette.chevronGlow}
-            ${
-              swipeFeedback
-                ? 'swipe-chevron-active'
-                : ''
-            }
           `}
+          style={{
+            filter:
+              energy > 0
+                ? `drop-shadow(0 0 ${5 + energy * 15}px ${
+                    direction === 'up'
+                      ? 'rgba(60,255,170,0.95)'
+                      : 'rgba(255,60,50,0.95)'
+                  })`
+                : undefined,
+          }}
         >
           {CHEVRON_OPACITY.map((opacity, index) => (
             <Chevron
               key={index}
               direction={direction}
               gradientId={`${id}-chevron`}
-              opacity={opacity}
-              active={swipeFeedback}
-              index={index}
+              opacity={
+                isLocked
+                  ? 1
+                  : opacity + energy * (1 - opacity)
+              }
             />
           ))}
         </span>
       </span>
 
-      {/* ----------------------------------------------------------------- */}
-      {/* Swipe label                                                        */}
-      {/* ----------------------------------------------------------------- */}
+      {/* =============================================================== */}
+      {/* Swipe instruction / commitment label                             */}
+      {/* =============================================================== */}
 
       <span
         className={`
           pointer-events-none
           absolute
           inset-x-0
-          top-[71%]
+          top-[70%]
           flex
           flex-col
           items-center
           leading-none
-          transition-all
-          duration-200
+          transition-[opacity,transform]
+          duration-150
           [transform:translateZ(12px)]
           ${dim}
-          ${swipeFeedback ? 'scale-105 opacity-100' : ''}
         `}
       >
-        <span
-          className="
-            text-[clamp(7px,2vw,9px)]
-            font-semibold
-            uppercase
-            tracking-[0.16em]
-            text-white/75
-            drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]
-          "
-        >
-          {swipeFeedback ? 'Locked' : 'Swipe'}
-        </span>
+        {isLocked ? (
+          <>
+            <span
+              className="
+                text-[clamp(6px,1.8vw,8px)]
+                font-bold
+                uppercase
+                tracking-[0.2em]
+                text-white/70
+                drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]
+              "
+            >
+              Prediction
+            </span>
 
-        <span
-          className={`
-            mt-1
-            text-[clamp(12px,3.5vw,15px)]
-            font-black
-            uppercase
-            tracking-[0.08em]
-            text-white
-            drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]
-            ${
-              swipeFeedback
-                ? direction === 'up'
-                  ? 'text-emerald-200'
-                  : 'text-red-200'
-                : ''
-            }
-          `}
-        >
-          {palette.label}
-        </span>
+            <span
+              className={`
+                mt-1
+                text-[clamp(10px,3vw,13px)]
+                font-black
+                uppercase
+                tracking-[0.12em]
+                ${direction === 'up'
+                  ? 'text-emerald-100'
+                  : 'text-red-100'}
+              `}
+              style={{
+                textShadow:
+                  direction === 'up'
+                    ? '0 0 8px rgba(40,255,155,0.9)'
+                    : '0 0 8px rgba(255,55,45,0.9)',
+              }}
+            >
+              Locked
+            </span>
+          </>
+        ) : (
+          <>
+            <span
+              className="
+                text-[clamp(7px,2vw,9px)]
+                font-semibold
+                uppercase
+                tracking-[0.16em]
+                text-white/75
+                drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]
+              "
+            >
+              Swipe
+            </span>
+
+            <span
+              className="
+                mt-1
+                text-[clamp(12px,3.5vw,15px)]
+                font-black
+                uppercase
+                tracking-[0.08em]
+                text-white
+                drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]
+              "
+            >
+              {palette.label}
+            </span>
+          </>
+        )}
       </span>
 
-      {/* ----------------------------------------------------------------- */}
-      {/* Swipe confirmation pulse                                           */}
-      {/* ----------------------------------------------------------------- */}
+      {/* =============================================================== */}
+      {/* Swipe progress indicator                                         */}
+      {/* =============================================================== */}
 
-      <span
+      {!isLocked && (
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            left-1/2
+            top-[82%]
+            h-px
+            -translate-x-1/2
+            overflow-hidden
+            rounded-full
+          "
+          style={{
+            width: `${20 + energy * 30}%`,
+            background:
+              direction === 'up'
+                ? 'rgba(49,255,154,0.9)'
+                : 'rgba(255,51,47,0.9)',
+            boxShadow:
+              direction === 'up'
+                ? '0 0 7px rgba(49,255,154,0.8)'
+                : '0 0 7px rgba(255,51,47,0.8)',
+            opacity: 0.25 + energy * 0.75,
+            transition:
+              'width 80ms ease-out, opacity 100ms ease-out',
+          }}
+        />
+      )}
+    </button>
+  )
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Glass outer shell
+ * ---------------------------------------------------------------------------
+ *
+ * This is deliberately separate from the mechanical SVG artwork.
+ *
+ * The reference has a transparent carved-glass shell sitting around the
+ * coloured interior. The shell catches environmental light and creates the
+ * impression that the control is a physical object rather than a flat panel.
+ */
+
+function GlassShell({
+  palette,
+  energy,
+  locked,
+  dim,
+}) {
+  const shellOpacity = 0.38 + energy * 0.38
+
+  return (
+    <>
+      {/* Broad transparent glass body */}
+      <svg
         aria-hidden="true"
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
         className={`
           pointer-events-none
           absolute
-          left-1/2
-          top-1/2
-          h-[38%]
-          w-[42%]
-          -translate-x-1/2
-          -translate-y-1/2
-          rounded-full
-          opacity-0
-          blur-[16px]
-          [transform:translate(-50%,-50%)_translateZ(8px)]
-          ${
-            swipeFeedback
-              ? direction === 'up'
-                ? 'bg-emerald-300/25 swipe-pulse'
-                : 'bg-red-300/25 swipe-pulse'
-              : ''
-          }
+          inset-0
+          h-full
+          w-full
+          overflow-visible
+          transition-[opacity,filter]
+          duration-200
+          ${dim}
         `}
+        style={{
+          opacity: locked ? 1 : shellOpacity,
+          filter:
+            locked
+              ? `drop-shadow(0 0 10px ${
+                  palette.rim
+                })`
+              : undefined,
+        }}
+      >
+        <defs>
+          <linearGradient
+            id={`shell-${palette.label}-glass`}
+            x1="0"
+            y1="0"
+            x2="1"
+            y2="1"
+          >
+            <stop
+              offset="0"
+              stopColor="#d9faff"
+              stopOpacity="0.22"
+            />
+            <stop
+              offset="0.14"
+              stopColor="#7edfff"
+              stopOpacity="0.08"
+            />
+            <stop
+              offset="0.42"
+              stopColor="#ffffff"
+              stopOpacity="0.015"
+            />
+            <stop
+              offset="0.76"
+              stopColor="#8bdfff"
+              stopOpacity="0.05"
+            />
+            <stop
+              offset="1"
+              stopColor="#ffffff"
+              stopOpacity="0.18"
+            />
+          </linearGradient>
+
+          <linearGradient
+            id={`shell-${palette.label}-edge`}
+            x1="0"
+            y1="0"
+            x2="1"
+            y2="1"
+          >
+            <stop
+              offset="0"
+              stopColor="#e8fcff"
+              stopOpacity="0.9"
+            />
+            <stop
+              offset="0.18"
+              stopColor="#66d9ff"
+              stopOpacity="0.7"
+            />
+            <stop
+              offset="0.48"
+              stopColor="#123b5a"
+              stopOpacity="0.45"
+            />
+            <stop
+              offset="0.76"
+              stopColor={palette.rim}
+              stopOpacity="0.55"
+            />
+            <stop
+              offset="1"
+              stopColor="#b8f4ff"
+              stopOpacity="0.85"
+            />
+          </linearGradient>
+
+          <linearGradient
+            id={`shell-${palette.label}-shine`}
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="1"
+          >
+            <stop
+              offset="0"
+              stopColor="#ffffff"
+              stopOpacity="0.45"
+            />
+            <stop
+              offset="0.18"
+              stopColor="#ffffff"
+              stopOpacity="0.06"
+            />
+            <stop
+              offset="0.5"
+              stopColor="#ffffff"
+              stopOpacity="0"
+            />
+            <stop
+              offset="1"
+              stopColor="#000000"
+              stopOpacity="0.3"
+            />
+          </linearGradient>
+
+          <filter
+            id={`shell-${palette.label}-blur`}
+            x="-50%"
+            y="-30%"
+            width="200%"
+            height="160%"
+          >
+            <feGaussianBlur stdDeviation="2.4" />
+          </filter>
+        </defs>
+
+        {/* Outer glass volume */}
+        <path
+          d={OUTER}
+          fill={`url(#shell-${palette.label}-glass)`}
+          stroke={`url(#shell-${palette.label}-edge)`}
+          strokeWidth="1.4"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Broad luminous edge */}
+        <path
+          d={OUTER}
+          fill="none"
+          stroke={palette.rim}
+          strokeOpacity={locked ? 0.4 : 0.16}
+          strokeWidth="3"
+          filter={`url(#shell-${palette.label}-blur)`}
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Inner glass shell */}
+        <path
+          d={INNER}
+          fill="none"
+          stroke="#c9f8ff"
+          strokeOpacity="0.12"
+          strokeWidth="0.75"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Upper glass reflection */}
+        <path
+          d={`
+            M8 9
+            H80
+            V72
+            C59 52 37 54 8 91
+            Z
+          `}
+          fill={`url(#shell-${palette.label}-shine)`}
+          opacity="0.7"
+        />
+
+        {/* Long left glass reflection */}
+        <path
+          d="M12 31 C22 61 22 124 14 181"
+          fill="none"
+          stroke="#dffcff"
+          strokeOpacity="0.25"
+          strokeWidth="0.8"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Short right glass reflection */}
+        <path
+          d="M75 34 C82 64 80 94 76 119"
+          fill="none"
+          stroke="#ffffff"
+          strokeOpacity="0.14"
+          strokeWidth="0.7"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Top shell highlight */}
+        <path
+          d={`M12 8 H70`}
+          fill="none"
+          stroke="#ffffff"
+          strokeOpacity={locked ? 0.65 : 0.35}
+          strokeWidth="0.8"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Bottom shell highlight */}
+        <path
+          d={`M14 ${H - 8} H72`}
+          fill="none"
+          stroke={palette.rimBright}
+          strokeOpacity={locked ? 0.55 : 0.2}
+          strokeWidth="0.8"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+
+      {/* External shell glow */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-[2px] rounded-[20px] opacity-40"
+        style={{
+          boxShadow:
+            locked
+              ? `inset 0 0 16px ${palette.rim}, 0 0 16px ${palette.rim}`
+              : `inset 0 0 9px ${palette.rim}`,
+          transition:
+            'box-shadow 150ms ease-out, opacity 150ms ease-out',
+          opacity: locked ? 0.85 : 0.3 + energy * 0.5,
+        }}
       />
-    </button>
+    </>
   )
 }
 
@@ -498,102 +854,50 @@ function SwipePanel({
  * ---------------------------------------------------------------------------
  * Swipe energy
  * ---------------------------------------------------------------------------
- *
- * These lines appear only after an actual swipe.
- *
- * Up:
- *   energy travels upward.
- *
- * Down:
- *   energy travels downward.
  */
 
 function SwipeEnergy({
   palette,
-  visible,
+  energy,
   direction,
+  locked,
 }) {
+  if (energy <= 0 && !locked) return null
+
+  const isUp = direction === 'up'
+
   return (
     <span
       aria-hidden="true"
-      className={`
-        pointer-events-none
-        absolute
-        inset-x-0
-        top-[24%]
-        z-20
-        flex
-        justify-center
-        opacity-0
-        [transform:translateZ(18px)]
-        ${visible ? 'swipe-energy-visible' : ''}
-      `}
+      className="pointer-events-none absolute inset-x-0 top-[23%] flex justify-center"
+      style={{
+        opacity: locked ? 1 : 0.25 + energy * 0.75,
+      }}
     >
       <span
-        className="
-          relative
-          h-[118px]
-          w-[30%]
-        "
-      >
-        <span
-          className={`
-            absolute
-            left-1/2
-            top-1/2
-            h-[92px]
-            w-[2px]
-            -translate-x-1/2
-            -translate-y-1/2
-            rounded-full
-            ${
-              direction === 'up'
-                ? 'bg-gradient-to-t'
-                : 'bg-gradient-to-b'
-            }
-            from-transparent
-            via-white
-            to-transparent
-            opacity-90
-          `}
-          style={{
-            boxShadow: `0 0 7px ${palette.rim}, 0 0 18px ${palette.rim}`,
-          }}
-        />
-
-        <span
-          className={`
-            absolute
-            left-1/2
-            top-1/2
-            h-[55px]
-            w-[9px]
-            -translate-x-1/2
-            -translate-y-1/2
-            rounded-full
-            blur-[6px]
-            ${
-              direction === 'up'
-                ? 'bg-gradient-to-t'
-                : 'bg-gradient-to-b'
-            }
-            from-transparent
-            via-current
-            to-transparent
-          `}
-          style={{
-            color: palette.rim,
-            opacity: 0.7,
-          }}
-        />
-      </span>
+        className="h-[105px] w-[2px] rounded-full"
+        style={{
+          background: `linear-gradient(${
+            isUp
+              ? 'to top'
+              : 'to bottom'
+          }, transparent, ${palette.rimBright}, transparent)`,
+          boxShadow: `
+            0 0 ${5 + energy * 12}px ${palette.rim},
+            0 0 ${12 + energy * 18}px ${palette.rim}
+          `,
+          transform: `scaleY(${0.3 + energy * 0.7})`,
+          transition:
+            'transform 100ms ease-out, opacity 120ms ease-out',
+        }}
+      />
     </span>
   )
 }
 
 /*
  * ---------------------------------------------------------------------------
- * 3D mechanical extrusion
+ * Mechanical extrusion
  * ---------------------------------------------------------------------------
  */
 
@@ -640,7 +944,7 @@ function Extrusion({ palette, dim }) {
           d={OUTER}
           fill="none"
           stroke="#000000"
-          strokeOpacity={0.38}
+          strokeOpacity="0.38"
           strokeWidth={index > 5 ? 1.4 : 0.8}
           vectorEffect="non-scaling-stroke"
         />
@@ -659,8 +963,6 @@ function Chevron({
   direction,
   gradientId,
   opacity,
-  active,
-  index,
 }) {
   const points =
     direction === 'up'
@@ -670,22 +972,8 @@ function Chevron({
   return (
     <svg
       viewBox="0 0 100 84"
-      className={`
-        block
-        w-full
-        ${
-          active
-            ? index === 0
-              ? 'swipe-arrow-front'
-              : index === 1
-                ? 'swipe-arrow-middle'
-                : 'swipe-arrow-back'
-            : ''
-        }
-      `}
-      style={{
-        opacity: active ? 1 : opacity,
-      }}
+      className="block w-full"
+      style={{ opacity }}
     >
       <polygon
         points={points}
@@ -706,6 +994,7 @@ function PanelArtwork({
   palette,
   selected,
   dim,
+  energy,
 }) {
   const {
     body,
@@ -748,26 +1037,11 @@ function PanelArtwork({
           x2="1"
           y2="1"
         >
-          <stop
-            offset="0"
-            stopColor="#183c59"
-          />
-          <stop
-            offset="0.22"
-            stopColor="#0c263d"
-          />
-          <stop
-            offset="0.5"
-            stopColor="#061522"
-          />
-          <stop
-            offset="0.78"
-            stopColor="#0d2c45"
-          />
-          <stop
-            offset="1"
-            stopColor="#020811"
-          />
+          <stop offset="0" stopColor="#183c59" />
+          <stop offset="0.22" stopColor="#0c263d" />
+          <stop offset="0.5" stopColor="#061522" />
+          <stop offset="0.78" stopColor="#0d2c45" />
+          <stop offset="1" stopColor="#020811" />
         </linearGradient>
 
         <linearGradient
@@ -777,30 +1051,12 @@ function PanelArtwork({
           x2="1"
           y2="1"
         >
-          <stop
-            offset="0"
-            stopColor="#d8f8ff"
-          />
-          <stop
-            offset="0.16"
-            stopColor="#62cfff"
-          />
-          <stop
-            offset="0.35"
-            stopColor="#12527f"
-          />
-          <stop
-            offset="0.62"
-            stopColor="#06192b"
-          />
-          <stop
-            offset="0.86"
-            stopColor="#2e88bd"
-          />
-          <stop
-            offset="1"
-            stopColor="#9ceaff"
-          />
+          <stop offset="0" stopColor="#d8f8ff" />
+          <stop offset="0.16" stopColor="#62cfff" />
+          <stop offset="0.35" stopColor="#12527f" />
+          <stop offset="0.62" stopColor="#06192b" />
+          <stop offset="0.86" stopColor="#2e88bd" />
+          <stop offset="1" stopColor="#9ceaff" />
         </linearGradient>
 
         <linearGradient
@@ -810,26 +1066,11 @@ function PanelArtwork({
           x2="0"
           y2="1"
         >
-          <stop
-            offset="0"
-            stopColor={body[0]}
-          />
-          <stop
-            offset="0.18"
-            stopColor={body[1]}
-          />
-          <stop
-            offset="0.52"
-            stopColor={body[2]}
-          />
-          <stop
-            offset="0.78"
-            stopColor={body[1]}
-          />
-          <stop
-            offset="1"
-            stopColor={body[3]}
-          />
+          <stop offset="0" stopColor={body[0]} />
+          <stop offset="0.18" stopColor={body[1]} />
+          <stop offset="0.52" stopColor={body[2]} />
+          <stop offset="0.78" stopColor={body[1]} />
+          <stop offset="1" stopColor={body[3]} />
         </linearGradient>
 
         <linearGradient
@@ -996,22 +1237,10 @@ function PanelArtwork({
           x2="1"
           y2="1"
         >
-          <stop
-            offset="0"
-            stopColor={rimBright}
-          />
-          <stop
-            offset="0.3"
-            stopColor={rim}
-          />
-          <stop
-            offset="0.7"
-            stopColor={rim}
-          />
-          <stop
-            offset="1"
-            stopColor={rimBright}
-          />
+          <stop offset="0" stopColor={rimBright} />
+          <stop offset="0.3" stopColor={rim} />
+          <stop offset="0.7" stopColor={rim} />
+          <stop offset="1" stopColor={rimBright} />
         </linearGradient>
 
         <radialGradient id={`${id}-glint`}>
@@ -1080,6 +1309,7 @@ function PanelArtwork({
 
       <g transform={flip}>
         {/* Mechanical side tabs */}
+
         <g>
           <rect
             x="-1.5"
@@ -1123,6 +1353,7 @@ function PanelArtwork({
         </g>
 
         {/* Outer metal chassis */}
+
         <path
           d={OUTER}
           fill={`url(#${id}-frame)`}
@@ -1168,6 +1399,7 @@ function PanelArtwork({
         />
 
         {/* Glass interior */}
+
         <path
           d={INNER}
           fill={`url(#${id}-body)`}
@@ -1213,7 +1445,7 @@ function PanelArtwork({
             rx="32"
             ry="92"
             fill={`url(#${id}-plasma-soft)`}
-            opacity="0.55"
+            opacity={0.55 + energy * 0.25}
           />
 
           {[
@@ -1306,13 +1538,14 @@ function PanelArtwork({
           />
         </g>
 
-        {/* Inner neon rim glow */}
+        {/* Inner neon rim */}
+
         <path
           d={INNER}
           fill="none"
           stroke={rim}
-          strokeWidth="4"
-          strokeOpacity="0.48"
+          strokeWidth={selected ? 5 : 4}
+          strokeOpacity={selected ? 0.72 : 0.48}
           filter={`url(#${id}-strong)`}
         />
 
@@ -1320,12 +1553,13 @@ function PanelArtwork({
           d={INNER}
           fill="none"
           stroke={`url(#${id}-rim)`}
-          strokeWidth="1.55"
+          strokeWidth={selected ? 1.9 : 1.55}
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
 
         {/* Structural side rails */}
+
         <path
           d="M8 28 L8 272"
           fill="none"
@@ -1362,7 +1596,8 @@ function PanelArtwork({
           vectorEffect="non-scaling-stroke"
         />
 
-        {/* Mechanical horizontal separators */}
+        {/* Mechanical separators */}
+
         {[66, 229].map((y) => (
           <g key={y}>
             <path
@@ -1383,7 +1618,8 @@ function PanelArtwork({
           </g>
         ))}
 
-        {/* Small mechanical corner lights */}
+        {/* Corner lights */}
+
         <circle
           cx="9"
           cy="10"
