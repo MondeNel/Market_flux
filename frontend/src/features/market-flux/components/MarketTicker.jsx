@@ -3,9 +3,11 @@
  *
  * @description
  * Market row: symbol picker on the left, spinning odometer price in the
- * middle (amber end caps, cylinder shading), LIVE badge on the right.
+ * middle, LIVE badge on the right.
  *
- * The frame is clear liquid glass so the background artwork shows through.
+ * The outer liquid-glass frame has intentionally been removed so the
+ * selector, spinner and LIVE indicator float directly within the HUD.
+ *
  * Presentational only; all state comes from the simulation hook.
  */
 
@@ -19,6 +21,8 @@ import MarketSelector from './MarketSelector'
  * @param {object} props.market Selected market.
  * @param {object[]} props.markets All markets.
  * @param {number} props.price Current price.
+ * @param {'up'|'down'} props.direction Direction of the last tick.
+ * @param {boolean} props.isRoundLive Whether a round is running.
  * @param {boolean} props.canSelect Whether the market can be changed now.
  * @param {boolean} [props.tease=false] Near-miss reveal: tease the last reel and glow amber.
  * @param {(marketId: string) => void} props.onSelect
@@ -28,10 +32,14 @@ function MarketTicker({
   market,
   markets,
   price,
+  direction,
+  isRoundLive,
   canSelect,
   tease = false,
   onSelect,
 }) {
+  const tone = isRoundLive ? direction : 'idle'
+
   // The cylinder's rim turns amber while a near miss is being revealed.
   const rim = tease
     ? 'border-amber-300/80 shadow-[inset_0_0_18px_rgba(251,191,36,0.3),0_0_16px_rgba(251,191,36,0.5)]'
@@ -39,32 +47,22 @@ function MarketTicker({
 
   return (
     // z-30 keeps the open picker above the play area beneath it.
-    <section aria-label="Market" className="relative z-30 px-3">
+    <section
+      aria-label="Market"
+      className="relative z-30 px-3"
+    >
       <div
         className="
-          relative
           flex
           items-center
           gap-2
-          rounded-[18px]
-          border
-          border-cyan-300/45
-          bg-white/[0.025]
-          p-2
-          shadow-[0_0_14px_rgba(0,190,255,0.28),inset_0_1px_0_rgba(255,255,255,0.35),inset_0_0_18px_rgba(0,190,255,0.08)]
-          backdrop-blur-[4px]
         "
       >
-        {/* Top glass highlight */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent"
-        />
-
         <div className="flex shrink-0 flex-col gap-1">
           <span className="pl-1 text-[7px] font-bold uppercase tracking-[0.22em] text-cyan-200/75">
             Market
           </span>
+
           <MarketSelector
             markets={markets}
             selected={market}
@@ -96,27 +94,69 @@ function MarketTicker({
           {/* Rim light along the top and bottom of the cylinder */}
           <span
             aria-hidden="true"
-            className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200 to-transparent"
+            className="
+              absolute
+              inset-x-4
+              top-0
+              h-px
+              bg-gradient-to-r
+              from-transparent
+              via-cyan-200
+              to-transparent
+            "
           />
+
           <span
             aria-hidden="true"
-            className="absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent"
+            className="
+              absolute
+              inset-x-4
+              bottom-0
+              h-px
+              bg-gradient-to-r
+              from-transparent
+              via-cyan-300/80
+              to-transparent
+            "
           />
 
           {/* Amber end caps */}
           <span
             aria-hidden="true"
-            className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+            className="
+              absolute
+              inset-y-2
+              left-0
+              w-[3px]
+              rounded-full
+              bg-gradient-to-b
+              from-transparent
+              via-amber-300
+              to-transparent
+              shadow-[0_0_6px_rgba(251,191,36,0.9)]
+            "
           />
+
           <span
             aria-hidden="true"
-            className="absolute inset-y-2 right-0 w-[3px] rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_6px_rgba(251,191,36,0.9)]"
+            className="
+              absolute
+              inset-y-2
+              right-0
+              w-[3px]
+              rounded-full
+              bg-gradient-to-b
+              from-transparent
+              via-amber-300
+              to-transparent
+              shadow-[0_0_6px_rgba(251,191,36,0.9)]
+            "
           />
 
           <MarketNumberSpinner
             value={price}
-            marketKey={market.id}
             decimals={market.decimals}
+            tone={tone}
             tease={tease}
           />
         </div>
@@ -134,9 +174,11 @@ function LiveBadge() {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 motion-reduce:animate-none" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
       </span>
+
       <span className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-300">
         Live
       </span>
+
       <Activity
         aria-hidden="true"
         className="h-3 w-3 text-cyan-300"
