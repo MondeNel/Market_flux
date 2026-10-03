@@ -2,40 +2,66 @@
  * @file src/styles/effects.css
  *
  * @description
- * Shared visual effects used by the Market Flux HUD.
+ * Shared visual effects for the Market Flux mechanical HUD.
  *
- * - market-flux-glow    soft cyan outer glow
- * - market-flux-glass   dark frosted panel (base HUD surface)
- * - market-flux-liquid  liquid-glass surface: translucent body, refraction
- *                       tints, specular sheen and inner rim light
- * - market-flux-clear   modifier for liquid: fully see-through, no tint, so the
- *                       scene behind shows in its own colours
- * - market-flux-edge    shiny gradient border that slowly glints
+ * DESIGN LANGUAGE
+ * ---------------------------------------------------------------------------
+ * Market Flux uses transparent physical surfaces rather than conventional
+ * cards. These effects provide:
  *
- * Use liquid + edge together on the same element and give it a border radius.
+ * - subtle cyan atmospheric glow
+ * - transparent liquid-glass depth
+ * - restrained specular reflections
+ * - mechanical inner shadows
+ * - selective structural edge lighting
+ *
+ * Components should provide their own geometry, rails and accent placement.
+ * These utilities intentionally avoid creating a complete glowing border
+ * around every surface.
  */
+
+/* ---------------------------------------------------------------------------
+ * Atmospheric glow
+ * ------------------------------------------------------------------------ */
 
 .market-flux-glow {
   box-shadow:
-    0 0 12px rgba(0, 170, 255, 0.18),
-    0 0 32px rgba(0, 120, 255, 0.1),
-    inset 0 0 20px rgba(0, 160, 255, 0.06);
+    0 0 10px rgba(0, 190, 255, 0.16),
+    0 0 28px rgba(0, 120, 255, 0.08),
+    inset 0 0 18px rgba(0, 180, 255, 0.045);
 }
+
+/* ---------------------------------------------------------------------------
+ * Legacy glass base
+ *
+ * Kept for compatibility with existing components.
+ * New Market Flux surfaces should generally use .market-flux-liquid instead.
+ * ------------------------------------------------------------------------ */
 
 .market-flux-glass {
   background:
     linear-gradient(
       180deg,
-      rgba(7, 20, 34, 0.88) 0%,
-      rgba(2, 10, 19, 0.94) 100%
+      rgba(8, 18, 30, 0.62) 0%,
+      rgba(2, 8, 16, 0.76) 100%
     );
 
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 190, 255, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.32);
 }
 
 /* ---------------------------------------------------------------------------
  * Liquid glass
+ *
+ * Transparent physical surface.
+ *
+ * The background artwork should remain visible through the component.
+ * Avoid making this effect responsible for the component's geometry.
  * ------------------------------------------------------------------------ */
 
 .market-flux-liquid {
@@ -43,117 +69,228 @@
   isolation: isolate;
 
   background:
-    /* cool refraction tint, top-left */
-    radial-gradient(
-      120% 150% at 10% 0%,
-      rgba(120, 220, 255, 0.24) 0%,
-      rgba(120, 220, 255, 0) 48%
-    ),
-    /* deep blue bloom, bottom-right */
-    radial-gradient(
-      90% 120% at 100% 100%,
-      rgba(0, 120, 255, 0.22) 0%,
-      rgba(0, 120, 255, 0) 55%
-    ),
-    /* body */
-    linear-gradient(180deg, rgba(14, 36, 58, 0.55) 0%, rgba(3, 12, 24, 0.74) 100%);
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.075) 0%,
+      rgba(255, 255, 255, 0.025) 38%,
+      rgba(0, 40, 70, 0.055) 100%
+    );
 
-  backdrop-filter: blur(18px) saturate(1.6);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter:
+    blur(7px)
+    saturate(1.35)
+    brightness(1.04);
+
+  -webkit-backdrop-filter:
+    blur(7px)
+    saturate(1.35)
+    brightness(1.04);
 
   box-shadow:
-    0 0 14px rgba(0, 190, 255, 0.24),
-    0 0 36px rgba(0, 120, 255, 0.14),
-    0 10px 24px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 -1px 0 rgba(0, 200, 255, 0.32),
-    inset 0 0 22px rgba(0, 170, 255, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 190, 255, 0.18),
+    inset 0 0 18px rgba(255, 255, 255, 0.035),
+    0 12px 28px rgba(0, 0, 0, 0.36);
 }
 
-/* Clear variant: the background artwork shows through untinted.
- * Must stay after .market-flux-liquid so it overrides it. */
+/* ---------------------------------------------------------------------------
+ * Clear liquid glass
+ *
+ * Used when the background artwork should dominate the component.
+ * ------------------------------------------------------------------------ */
+
 .market-flux-clear {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0.02) 45%,
-    rgba(255, 255, 255, 0.05) 100%
-  );
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.075) 0%,
+      rgba(255, 255, 255, 0.018) 42%,
+      rgba(255, 255, 255, 0.035) 100%
+    );
 
-  backdrop-filter: blur(3px) saturate(1.5) brightness(1.08);
-  -webkit-backdrop-filter: blur(3px) saturate(1.5) brightness(1.08);
+  backdrop-filter:
+    blur(3px)
+    saturate(1.45)
+    brightness(1.06);
+
+  -webkit-backdrop-filter:
+    blur(3px)
+    saturate(1.45)
+    brightness(1.06);
 
   box-shadow:
-    0 0 12px rgba(0, 190, 255, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 0 rgba(0, 200, 255, 0.35),
-    inset 0 0 16px rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(0, 200, 255, 0.2),
+    inset 0 0 14px rgba(255, 255, 255, 0.035),
+    0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
-/* Specular sheen across the upper part of the glass */
+/* ---------------------------------------------------------------------------
+ * Specular glass reflection
+ *
+ * A restrained physical highlight rather than a large glossy gradient.
+ * ------------------------------------------------------------------------ */
+
 .market-flux-liquid::after {
   content: "";
   position: absolute;
   inset: 0;
+
   border-radius: inherit;
   pointer-events: none;
+
   z-index: 1;
-  mix-blend-mode: screen;
+
   background:
     linear-gradient(
-      115deg,
-      rgba(255, 255, 255, 0.16) 0%,
-      rgba(255, 255, 255, 0.04) 26%,
-      rgba(255, 255, 255, 0) 42%
+      112deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.045) 18%,
+      rgba(255, 255, 255, 0) 38%
     ),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 38%);
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.055) 0%,
+      rgba(255, 255, 255, 0) 32%
+    );
+
+  mix-blend-mode: screen;
+}
+
+/* ---------------------------------------------------------------------------
+ * Mechanical depth
+ *
+ * Useful on reels, housings and physical controls.
+ * ------------------------------------------------------------------------ */
+
+.market-flux-mechanical {
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.08),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.58),
+    inset 2px 0 5px rgba(0, 0, 0, 0.24),
+    inset -2px 0 5px rgba(255, 255, 255, 0.035),
+    0 8px 18px rgba(0, 0, 0, 0.38);
+}
+
+/* ---------------------------------------------------------------------------
+ * Mechanical inner rim
+ * ------------------------------------------------------------------------ */
+
+.market-flux-rim {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.62),
+    inset 0 0 10px rgba(0, 150, 255, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+ * Structural cyan accent
+ *
+ * This is intentionally NOT a complete border.
+ * Components can use it for small mechanical edge fragments.
+ * ------------------------------------------------------------------------ */
+
+.market-flux-accent {
+  box-shadow:
+    0 0 7px rgba(0, 205, 255, 0.38),
+    0 0 16px rgba(0, 130, 255, 0.14);
 }
 
 /* ---------------------------------------------------------------------------
  * Shiny edge
+ *
+ * Compatibility utility for components that still require a perimeter.
+ * Keep the treatment restrained so it does not turn every component into a
+ * neon card.
  * ------------------------------------------------------------------------ */
+
+.market-flux-edge {
+  position: relative;
+}
 
 .market-flux-edge::before {
   content: "";
+
   position: absolute;
   inset: 0;
+
   border-radius: inherit;
-  padding: 1.5px;
+  padding: 1px;
+
   pointer-events: none;
   z-index: 2;
 
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(90, 220, 255, 0.9) 16%,
-    rgba(0, 120, 255, 0.22) 42%,
-    rgba(0, 200, 255, 0.14) 60%,
-    rgba(120, 235, 255, 0.85) 82%,
-    rgba(255, 255, 255, 0.92) 100%
-  );
-  background-size: 220% 220%;
-  animation: market-flux-glint 9s ease-in-out infinite;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(90, 220, 255, 0.58) 15%,
+      rgba(0, 120, 255, 0.12) 38%,
+      rgba(0, 200, 255, 0.08) 64%,
+      rgba(120, 235, 255, 0.45) 84%,
+      rgba(255, 255, 255, 0.48) 100%
+    );
 
-  /* Punch out the middle so only the 1.5px ring remains */
+  background-size: 220% 220%;
+
+  animation:
+    market-flux-glint
+    11s
+    ease-in-out
+    infinite;
+
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
+
   -webkit-mask-composite: xor;
+
   mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
+
   mask-composite: exclude;
 }
+
+/* ---------------------------------------------------------------------------
+ * Cyan structural line
+ * ------------------------------------------------------------------------ */
+
+.market-flux-line {
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(0, 200, 255, 0.16) 18%,
+      rgba(80, 225, 255, 0.75) 50%,
+      rgba(0, 200, 255, 0.16) 82%,
+      transparent 100%
+    );
+
+  box-shadow:
+    0 0 6px rgba(0, 200, 255, 0.22);
+}
+
+/* ---------------------------------------------------------------------------
+ * Glint animation
+ * ------------------------------------------------------------------------ */
 
 @keyframes market-flux-glint {
   0%,
   100% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion
+ * ------------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
   .market-flux-edge::before {
