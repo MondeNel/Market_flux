@@ -2,11 +2,23 @@
  * @file src/features/market-flux/components/MarketTicker.jsx
  *
  * @description
- * Market row: symbol picker on the left, spinning odometer price in the
- * middle, LIVE badge on the right.
+ * Market Flux market instrument.
  *
- * The outer liquid-glass frame has intentionally been removed so the
- * selector, spinner and LIVE indicator float directly within the HUD.
+ * The ticker sits directly beneath the player header and acts as the
+ * instrument readout for the active market.
+ *
+ * DESIGN
+ * ---------------------------------------------------------------------------
+ * - Floating HUD composition rather than a conventional card.
+ * - Market selector on the left.
+ * - Large mechanical market-number spinner in the centre.
+ * - Compact LIVE indicator on the right.
+ * - Broken neon-blue structural rails.
+ * - Amber instrumentation appears only during a tease / near-miss reveal.
+ * - No heavy solid backdrop.
+ *
+ * The MarketNumberSpinner owns the market-value transition and determines
+ * which digits changed and whether the final market value moved up or down.
  *
  * Presentational only; all state comes from the simulation hook.
  */
@@ -24,8 +36,8 @@ import MarketSelector from './MarketSelector'
  * @param {'up'|'down'} props.direction Direction of the last tick.
  * @param {boolean} props.isRoundLive Whether a round is running.
  * @param {boolean} props.canSelect Whether the market can be changed now.
- * @param {boolean} [props.tease=false] Near-miss reveal: tease the last reel and glow amber.
- * @param {(marketId: string) => void} props.onSelect
+ * @param {boolean} [props.tease=false] Near-miss reveal state.
+ * @param {(marketId: string) => void} props.onSelect Market selection handler.
  * @returns {JSX.Element}
  */
 function MarketTicker({
@@ -38,28 +50,54 @@ function MarketTicker({
   tease = false,
   onSelect,
 }) {
-  const tone = isRoundLive ? direction : 'idle'
-
-  // The cylinder's rim turns amber while a near miss is being revealed.
-  const rim = tease
-    ? 'border-amber-300/80 shadow-[inset_0_0_18px_rgba(251,191,36,0.3),0_0_16px_rgba(251,191,36,0.5)]'
-    : 'border-cyan-300/60 shadow-[inset_0_0_18px_rgba(0,200,255,0.3),0_0_14px_rgba(0,210,255,0.4)]'
+  /*
+   * Direction is retained here for compatibility with the simulation API.
+   * MarketNumberSpinner derives its result direction from the actual previous
+   * and current values, so we intentionally do not pass a tone into it.
+   */
+  void direction
+  void isRoundLive
 
   return (
-    // z-30 keeps the open picker above the play area beneath it.
     <section
       aria-label="Market"
-      className="relative z-30 px-3"
+      className="
+        relative
+        z-30
+        px-3
+        pt-1
+      "
     >
       <div
         className="
+          relative
           flex
-          items-center
+          items-end
           gap-2
         "
       >
-        <div className="flex shrink-0 flex-col gap-1">
-          <span className="pl-1 text-[7px] font-bold uppercase tracking-[0.22em] text-cyan-200/75">
+        {/* -----------------------------------------------------------------
+         * Market selector
+         * ---------------------------------------------------------------- */}
+        <div
+          className="
+            relative
+            flex
+            shrink-0
+            flex-col
+            gap-1
+          "
+        >
+          <span
+            className="
+              pl-1
+              text-[7px]
+              font-bold
+              uppercase
+              tracking-[0.22em]
+              text-cyan-200/70
+            "
+          >
             Market
           </span>
 
@@ -69,119 +107,372 @@ function MarketTicker({
             onSelect={onSelect}
             disabled={!canSelect}
           />
+
+          {/* Small mechanical light beneath selector */}
+          <span
+            aria-hidden="true"
+            className="
+              pointer-events-none
+              absolute
+              bottom-[-5px]
+              left-2
+              h-px
+              w-8
+              bg-gradient-to-r
+              from-cyan-300/70
+              to-transparent
+              shadow-[0_0_5px_rgba(80,210,255,0.65)]
+            "
+          />
         </div>
 
-        {/* Odometer: one continuous cylinder with amber end caps */}
+        {/* -----------------------------------------------------------------
+         * Market number instrument
+         * ---------------------------------------------------------------- */}
         <div
-          className={`
+          className="
             relative
-            flex
-            h-[54px]
             min-w-0
             flex-1
-            items-center
-            justify-center
-            overflow-hidden
-            rounded-[14px]
-            border
-            bg-[linear-gradient(180deg,rgba(0,8,20,0.85)_0%,rgba(6,40,78,0.6)_30%,rgba(20,90,150,0.5)_50%,rgba(6,40,78,0.6)_70%,rgba(0,8,20,0.85)_100%)]
-            px-2.5
-            transition-[border-color,box-shadow]
-            duration-300
-            ${rim}
-          `}
+          "
         >
-          {/* Rim light along the top and bottom of the cylinder */}
+          {/* Atmospheric glow behind instrument */}
           <span
             aria-hidden="true"
             className="
+              pointer-events-none
               absolute
-              inset-x-4
-              top-0
-              h-px
-              bg-gradient-to-r
-              from-transparent
-              via-cyan-200
-              to-transparent
-            "
-          />
-
-          <span
-            aria-hidden="true"
-            className="
-              absolute
-              inset-x-4
-              bottom-0
-              h-px
-              bg-gradient-to-r
-              from-transparent
-              via-cyan-300/80
-              to-transparent
-            "
-          />
-
-          {/* Amber end caps */}
-          <span
-            aria-hidden="true"
-            className="
-              absolute
-              inset-y-2
-              left-0
-              w-[3px]
+              inset-x-[8%]
+              top-1/2
+              h-8
+              -translate-y-1/2
               rounded-full
-              bg-gradient-to-b
-              from-transparent
-              via-amber-300
-              to-transparent
-              shadow-[0_0_6px_rgba(251,191,36,0.9)]
+              bg-[radial-gradient(ellipse_at_center,rgba(20,130,220,0.16),transparent_72%)]
+              blur-md
             "
           />
 
-          <span
-            aria-hidden="true"
-            className="
-              absolute
-              inset-y-2
-              right-0
-              w-[3px]
-              rounded-full
-              bg-gradient-to-b
-              from-transparent
-              via-amber-300
-              to-transparent
-              shadow-[0_0_6px_rgba(251,191,36,0.9)]
-            "
-          />
+          {/* Instrument housing */}
+          <div
+            className={`
+              relative
+              flex
+              h-[58px]
+              min-w-0
+              items-center
+              justify-center
+              overflow-visible
+              px-2
+              transition-[filter]
+              duration-300
+              ${
+                tease
+                  ? '[filter:drop-shadow(0_0_10px_rgba(251,191,36,0.38))]'
+                  : '[filter:drop-shadow(0_0_7px_rgba(30,160,255,0.25))]'
+              }
+            `}
+          >
+            {/* -------------------------------------------------------------
+             * Broken top rail
+             * ---------------------------------------------------------- */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                left-[8%]
+                right-[8%]
+                top-[3px]
+                h-px
+                ${
+                  tease
+                    ? 'bg-gradient-to-r from-transparent via-amber-300/80 to-transparent'
+                    : 'bg-gradient-to-r from-transparent via-cyan-200/75 to-transparent'
+                }
+              `}
+            />
 
-          <MarketNumberSpinner
-            value={price}
-            decimals={market.decimals}
-            tone={tone}
-            tease={tease}
-          />
+            {/* -------------------------------------------------------------
+             * Broken bottom rail
+             * ---------------------------------------------------------- */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                left-[12%]
+                right-[12%]
+                bottom-[3px]
+                h-px
+                ${
+                  tease
+                    ? 'bg-gradient-to-r from-transparent via-amber-300/70 to-transparent'
+                    : 'bg-gradient-to-r from-transparent via-cyan-300/65 to-transparent'
+                }
+              `}
+            />
+
+            {/* -------------------------------------------------------------
+             * Left mechanical bracket
+             * ---------------------------------------------------------- */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                bottom-[10px]
+                left-0
+                top-[10px]
+                w-[3px]
+                rounded-full
+                ${
+                  tease
+                    ? `
+                      bg-gradient-to-b
+                      from-transparent
+                      via-amber-300
+                      to-transparent
+                      shadow-[0_0_7px_rgba(251,191,36,0.85)]
+                    `
+                    : `
+                      bg-gradient-to-b
+                      from-transparent
+                      via-cyan-300
+                      to-transparent
+                      shadow-[0_0_7px_rgba(60,190,255,0.72)]
+                    `
+                }
+              `}
+            />
+
+            {/* Small upper-left broken accent */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                left-0
+                top-[8px]
+                h-px
+                w-5
+                ${
+                  tease
+                    ? 'bg-amber-300/80'
+                    : 'bg-cyan-300/80'
+                }
+              `}
+            />
+
+            {/* Small lower-left broken accent */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                bottom-[8px]
+                left-0
+                h-px
+                w-3
+                ${
+                  tease
+                    ? 'bg-amber-300/70'
+                    : 'bg-cyan-300/70'
+                }
+              `}
+            />
+
+            {/* -------------------------------------------------------------
+             * Right mechanical bracket
+             * ---------------------------------------------------------- */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                bottom-[10px]
+                right-0
+                top-[10px]
+                w-[3px]
+                rounded-full
+                ${
+                  tease
+                    ? `
+                      bg-gradient-to-b
+                      from-transparent
+                      via-amber-300
+                      to-transparent
+                      shadow-[0_0_7px_rgba(251,191,36,0.85)]
+                    `
+                    : `
+                      bg-gradient-to-b
+                      from-transparent
+                      via-cyan-300
+                      to-transparent
+                      shadow-[0_0_7px_rgba(60,190,255,0.72)]
+                    `
+                }
+              `}
+            />
+
+            {/* Small upper-right broken accent */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                right-0
+                top-[8px]
+                h-px
+                w-5
+                ${
+                  tease
+                    ? 'bg-amber-300/80'
+                    : 'bg-cyan-300/80'
+                }
+              `}
+            />
+
+            {/* Small lower-right broken accent */}
+            <span
+              aria-hidden="true"
+              className={`
+                pointer-events-none
+                absolute
+                bottom-[8px]
+                right-0
+                h-px
+                w-3
+                ${
+                  tease
+                    ? 'bg-amber-300/70'
+                    : 'bg-cyan-300/70'
+                }
+              `}
+            />
+
+            {/* -------------------------------------------------------------
+             * Inner glass reflection
+             * ---------------------------------------------------------- */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                inset-x-[5%]
+                top-[8px]
+                h-4
+                bg-gradient-to-b
+                from-white/[0.07]
+                to-transparent
+                blur-[1px]
+              "
+            />
+
+            {/* -------------------------------------------------------------
+             * Odometer
+             * ---------------------------------------------------------- */}
+            <MarketNumberSpinner
+              value={price}
+              decimals={market.decimals}
+              tease={tease}
+            />
+          </div>
         </div>
 
+        {/* -----------------------------------------------------------------
+         * LIVE indicator
+         * ---------------------------------------------------------------- */}
         <LiveBadge />
       </div>
     </section>
   )
 }
 
+/* ---------------------------------------------------------------------------
+ * Live badge
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Compact live-market indicator.
+ *
+ * @returns {JSX.Element}
+ */
 function LiveBadge() {
   return (
-    <div className="flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/40 px-1.5 py-1">
+    <div
+      className="
+        relative
+        mb-[5px]
+        flex
+        shrink-0
+        items-center
+        gap-1
+        rounded-full
+        px-1.5
+        py-1
+      "
+    >
+      {/* Faint HUD halo */}
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-0
+          rounded-full
+          bg-[radial-gradient(ellipse_at_center,rgba(0,220,150,0.1),transparent_72%)]
+        "
+      />
+
+      {/* Status light */}
       <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 motion-reduce:animate-none" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+        <span
+          aria-hidden="true"
+          className="
+            absolute
+            inline-flex
+            h-full
+            w-full
+            animate-ping
+            rounded-full
+            bg-emerald-400/60
+            motion-reduce:animate-none
+          "
+        />
+
+        <span
+          className="
+            relative
+            inline-flex
+            h-2
+            w-2
+            rounded-full
+            bg-emerald-400
+            shadow-[0_0_6px_rgba(52,211,153,0.9)]
+          "
+        />
       </span>
 
-      <span className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-300">
+      <span
+        className="
+          text-[8px]
+          font-black
+          uppercase
+          tracking-[0.14em]
+          text-emerald-300
+        "
+      >
         Live
       </span>
 
       <Activity
         aria-hidden="true"
-        className="h-3 w-3 text-cyan-300"
+        className="
+          h-3
+          w-3
+          text-cyan-300
+          drop-shadow-[0_0_4px_rgba(80,210,255,0.7)]
+        "
         strokeWidth={2.5}
       />
     </div>
