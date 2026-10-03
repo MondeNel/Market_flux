@@ -36,20 +36,23 @@ function MarketFlux() {
         onSelect={game.selectMarket}
       />
 
-      {/* Play area: bonus above the ladder, slim panels either side */}
+      {/* Play area: bonus above the ladder capsule, slim panels either side.
+          Proportions follow the reference: side panels ~21% of the width, the
+          capsule ~27%, gaps ~8.5%, margins ~7%. */}
       <section
         aria-label="Prediction"
         className="
           grid
           flex-1
-          grid-cols-[minmax(0,1fr)_minmax(0,1.9fr)_minmax(0,1fr)]
+          grid-cols-[minmax(0,21fr)_minmax(0,26.6fr)_minmax(0,21fr)]
           grid-rows-[auto_minmax(0,1fr)]
-          gap-x-3
-          gap-y-2
-          px-3
+          gap-x-[9.9%]
+          gap-y-0
+          px-[7.2%]
+          pb-3
         "
       >
-        <div className="col-start-2 row-start-1 flex justify-center">
+        <div className="relative z-10 col-start-2 row-start-1 -mb-2 flex justify-center">
           <BonusBadge reached={game.step === TOP_STEP} />
         </div>
 
