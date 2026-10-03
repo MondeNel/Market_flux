@@ -4,7 +4,19 @@
  * ============================================================================
  * MARKET FLUX — GLOBAL STYLES
  * ============================================================================
+ *
+ * Global rules only.
+ *
+ * Component-specific visual treatment belongs in:
+ *   - src/styles/effects.css
+ *   - individual Market Flux components
+ *
+ * The application background is owned by AppShell.
  */
+
+/* ---------------------------------------------------------------------------
+ * Root rendering
+ * ------------------------------------------------------------------------ */
 
 :root {
   font-family:
@@ -18,13 +30,26 @@
 
   color: #ffffff;
   background: #02060c;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-* {
+/* ---------------------------------------------------------------------------
+ * Box model
+ * ------------------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
+
+/* ---------------------------------------------------------------------------
+ * Document viewport
+ * ------------------------------------------------------------------------ */
 
 html,
 body,
@@ -34,16 +59,29 @@ body,
   margin: 0;
 }
 
-body {
+html {
   min-width: 320px;
-  min-height: 100dvh;
-  overflow-x: hidden;
   background: #02060c;
 }
 
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+
+  overflow-x: hidden;
+
+  background: #02060c;
+  color: #ffffff;
+}
+
+/* ---------------------------------------------------------------------------
+ * Form controls
+ * ------------------------------------------------------------------------ */
+
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -51,8 +89,73 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ---------------------------------------------------------------------------
+ * Touch interaction
+ * ------------------------------------------------------------------------ */
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* ---------------------------------------------------------------------------
+ * Focus
+ *
+ * Keep keyboard accessibility visible without introducing a permanent
+ * component border.
+ * ------------------------------------------------------------------------ */
+
 button:focus-visible,
-select:focus-visible {
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
   outline: 2px solid #00c8ff;
   outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Selection
+ * ------------------------------------------------------------------------ */
+
+::selection {
+  background: rgba(0, 200, 255, 0.24);
+  color: #ffffff;
+}
+
+/* ---------------------------------------------------------------------------
+ * Scrollbar
+ *
+ * Keep the browser scrollbar visually quiet so it does not compete with the
+ * mechanical HUD.
+ * ------------------------------------------------------------------------ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(80, 210, 255, 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(80, 210, 255, 0.28);
+  border-radius: 999px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion
+ * ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
 }
