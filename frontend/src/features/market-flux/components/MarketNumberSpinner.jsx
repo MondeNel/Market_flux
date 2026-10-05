@@ -2,147 +2,210 @@
  * @file src/features/market-flux/components/MarketNumberSpinner.jsx
  *
  * @description
- * Liquid-glass 3D market-number spinner for Market Flux.
+ * Mechanical market-number display for Market Flux.
  *
- * Visual design:
- * - Transparent liquid-glass spinner with no solid backdrop.
- * - Dark glossy 3D chassis around the spinner.
- * - Neon-blue outer rails with illuminated sections.
- * - Outer rails fade smoothly into the background at their endpoints.
- * - Dark recessed blue/black sections create physical depth.
- * - Neon-blue inner reel borders and mechanical edge lighting.
- * - Mechanical 3D digit reels with depth, bevels and reflections.
- * - Neon green for digits that changed during an upward market move.
- * - Neon red for digits that changed during a downward market move.
- * - Unchanged digits remain neutral.
+ * The reel shows the selected market price. It is the hero element of the
+ * game screen.
  *
- * Colour behaviour:
- * - All digits remain neutral while spinning.
- * - After the reels settle, only digits whose values changed are coloured.
- * - Market direction is calculated from the complete numeric value.
+ * BEHAVIOUR
+ * ---------------------------------------------------------------------------
+ * Idle / live:
+ *   The reel shows the live price. Digits update instantly on each market
+ *   tick (no spin), so the display is steady and readable.
  *
- * Example:
+ * Revealing:
+ *   When the round ends, every digit spins once and brakes onto the final
+ *   price, left to right. A near-miss tease holds the last digit one step
+ *   short before it creeps home.
  *
- *   86,773.04 -> 86,774.07
+ * LAYERS
+ * ---------------------------------------------------------------------------
+ *   ReelFrame     static housing, rails, glass and chevrons
+ *   DigitReel     the animating digit strips (this file)
  *
- *   Only the changed digits become neon green.
+ * RESULT COLOUR BEHAVIOUR
+ * ---------------------------------------------------------------------------
+ * While the reveal spin runs:
+ *   all digits remain neutral.
  *
- * The market direction is never inferred from individual digit movement.
+ * Otherwise:
+ *   only digits that changed since the previous price are coloured:
+ *
+ *   current > previous -> up / green
+ *   current < previous -> down / red
+ *
+ * A large jump (for example switching market) is treated as a new
+ * baseline and is not coloured.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
-const CELL_HEIGHT = 30
-const WINDOW_HEIGHT = 52
-const DRUM_OFFSET = (WINDOW_HEIGHT - CELL_HEIGHT) / 2
+import ReelFrame from './ReelFrame'
 
-// Timeline, in milliseconds from the moment the price changes.
-const SPIN_SPEED = 20
-const RAMP_MS = 200
-const FIRST_SPIN_MS = 1000
-const STAGGER_MS = 240
+/* -------------------------------------------------------------------------- */
+/* Mechanical timing                                                          */
+/* -------------------------------------------------------------------------- */
+
+const CELL_HEIGHT = 60
+const DISPLAY_HEIGHT = 84
+
+const SPIN_SPEED = 19
+const RAMP_MS = 180
+const FIRST_SPIN_MS = 850
+const STAGGER_MS = 110
 const BRAKE_MS = 260
-const SETTLE_MS = 160
-const OVERSHOOT = 0.3
+const SETTLE_MS = 150
 
-// Near-miss tease on the last reel.
-const TEASE_EXTRA_SPIN_MS = 250
-const TEASE_HOLD_MS = 150
-const TEASE_CREEP_MS = 250
-const TEASE_CREEP_CELLS = 1
+const OVERSHOOT = 0.22
 
 /**
- * Soft vertical fade used to create cylindrical depth around each reel.
+ * Price changes larger than this are treated as a new baseline rather
+ * than a market movement (for example after switching market).
  */
-const FADE_MASK =
-  'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.12) 12%, #000 32%, #000 68%, rgba(0,0,0,0.12) 88%, transparent 100%)'
+const JUMP_THRESHOLD = 0.05
 
-/**
- * Horizontal mask for the outer chassis.
- *
- * The border is strongest through the centre and disappears
- * smoothly toward both ends instead of stopping abruptly.
- */
-const OUTER_HORIZONTAL_FADE =
-  'linear-gradient(to right, transparent 0%, rgba(0,191,255,0.2) 7%, black 18%, black 82%, rgba(0,191,255,0.2) 93%, transparent 100%)'
+/* -------------------------------------------------------------------------- */
+/* Reel data                                                                  */
+/* -------------------------------------------------------------------------- */
 
-/**
- * Vertical mask for the outer chassis.
- *
- * Used on the left/right rails so they also fade naturally
- * into the surrounding glass.
- */
-const OUTER_VERTICAL_FADE =
-  'linear-gradient(to bottom, transparent 0%, rgba(0,191,255,0.2) 9%, black 20%, black 80%, rgba(0,191,255,0.2) 91%, transparent 100%)'
-
-/**
- * Three copies of 0 to 9 allow the strip to wrap without a visible seam.
- */
-const STRIP = Array.from(
+const DIGIT_STRIP = Array.from(
   { length: 30 },
-  (_, i) => i % 10,
+  (_, index) => index % 10,
 )
 
-/**
- * Spinner digit colour themes.
- */
-const TONES = {
+/* -------------------------------------------------------------------------- */
+/* Colour themes                                                              */
+/* -------------------------------------------------------------------------- */
+
+const DIGIT_TONES = {
   idle: {
-    className: `
-      text-sky-50
-      [text-shadow:
-        0_0_4px_rgba(186,230,253,0.95),
-        0_0_10px_rgba(56,189,248,0.55)
-      ]
+    color: '#EAF8FF',
+    shadow: `
+      0 0 3px rgba(255,255,255,0.9),
+      0 0 8px rgba(125,211,252,0.42)
     `,
   },
 
   up: {
-    className: `
-      text-[#39FF88]
-      [text-shadow:
-        0_0_3px_rgba(255,255,255,1),
-        0_0_7px_rgba(57,255,136,1),
-        0_0_16px_rgba(0,255,102,0.95),
-        0_0_28px_rgba(0,255,102,0.55)
-      ]
+    color: '#39FF88',
+    shadow: `
+      0 0 3px rgba(255,255,255,1),
+      0 0 7px rgba(57,255,136,1),
+      0 0 17px rgba(0,255,102,0.9),
+      0 0 28px rgba(0,255,102,0.45)
     `,
   },
 
   down: {
-    className: `
-      text-[#FF3158]
-      [text-shadow:
-        0_0_3px_rgba(255,255,255,1),
-        0_0_7px_rgba(255,49,88,1),
-        0_0_16px_rgba(255,23,68,0.95),
-        0_0_28px_rgba(255,23,68,0.55)
-      ]
+    color: '#FF3158',
+    shadow: `
+      0 0 3px rgba(255,255,255,1),
+      0 0 7px rgba(255,49,88,1),
+      0 0 17px rgba(255,23,68,0.9),
+      0 0 28px rgba(255,23,68,0.45)
     `,
   },
 }
 
-const mod10 = (n) =>
-  ((n % 10) + 10) % 10
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function mod10(value) {
+  return ((value % 10) + 10) % 10
+}
+
+function isDigit(char) {
+  return /\d/.test(char)
+}
 
 /**
- * Compare two complete market values.
+ * Digit size scales down as the price gets longer so seven digits
+ * (for example 86,538.74) still fit on a 360px screen.
+ *
+ * @param {number} digitCount
+ * @returns {string}
  */
-function getResultTone(
-  currentFormatted,
-  previousFormatted,
+function getFontSize(digitCount) {
+  if (digitCount >= 7) {
+    return 'clamp(30px, 9.5vw, 42px)'
+  }
+
+  if (digitCount === 6) {
+    return 'clamp(34px, 10.5vw, 48px)'
+  }
+
+  return 'clamp(38px, 12vw, 54px)'
+}
+
+/**
+ * Converts a formatted market value into a numeric value.
+ *
+ * @param {string} value
+ * @returns {number}
+ */
+function parseMarketValue(value) {
+  return Number(value.replace(/,/g, ''))
+}
+
+/**
+ * Whether the change between two prices is a baseline reset rather than
+ * normal market movement.
+ *
+ * @param {string} current
+ * @param {string} previous
+ * @returns {boolean}
+ */
+function isMarketJump(
+  current,
+  previous,
 ) {
-  if (!previousFormatted) {
+  const currentValue =
+    parseMarketValue(current)
+
+  const previousValue =
+    parseMarketValue(previous)
+
+  if (
+    !Number.isFinite(currentValue) ||
+    !Number.isFinite(previousValue) ||
+    previousValue === 0
+  ) {
+    return true
+  }
+
+  return (
+    Math.abs(
+      currentValue / previousValue - 1,
+    ) > JUMP_THRESHOLD
+  )
+}
+
+/**
+ * Determines complete-market direction.
+ *
+ * @param {string} current
+ * @param {string|null} previous
+ * @returns {'up'|'down'|'idle'}
+ */
+function getMarketDirection(
+  current,
+  previous,
+) {
+  if (!previous) {
     return 'idle'
   }
 
-  const currentValue = Number(
-    currentFormatted.replace(/,/g, ''),
-  )
+  const currentValue =
+    parseMarketValue(current)
 
-  const previousValue = Number(
-    previousFormatted.replace(/,/g, ''),
-  )
+  const previousValue =
+    parseMarketValue(previous)
 
   if (
     !Number.isFinite(currentValue) ||
@@ -163,746 +226,215 @@ function getResultTone(
 }
 
 /**
- * Determine which digit positions changed between two formatted values.
+ * Finds changed numeric positions.
  *
- * Digits are compared from the right so decimal and integer
- * positions remain correctly aligned.
+ * Digits are compared from the right so that formatting characters such as
+ * commas and decimal points do not affect alignment.
+ *
+ * @param {string} current
+ * @param {string} previous
+ * @returns {boolean[]}
  */
 function getChangedDigits(
-  currentFormatted,
-  previousFormatted,
+  current,
+  previous,
 ) {
   const currentDigits =
-    currentFormatted
+    current
       .split('')
-      .filter((char) => /\d/.test(char))
+      .filter(isDigit)
 
   const previousDigits =
-    previousFormatted
-      ? previousFormatted
-          .split('')
-          .filter((char) => /\d/.test(char))
-      : []
+    previous
+      .split('')
+      .filter(isDigit)
 
-  const changed =
-    Array(currentDigits.length).fill(false)
-
-  for (
-    let currentIndex =
-      currentDigits.length - 1;
-    currentIndex >= 0;
-    currentIndex -= 1
-  ) {
-    const previousIndex =
-      previousDigits.length -
-      1 -
-      (currentDigits.length -
+  return currentDigits.map(
+    (digit, index) => {
+      const distanceFromRight =
+        currentDigits.length -
         1 -
-        currentIndex)
+        index
 
-    const currentDigit =
-      currentDigits[currentIndex]
+      const previousIndex =
+        previousDigits.length -
+        1 -
+        distanceFromRight
 
-    const previousDigit =
-      previousIndex >= 0
-        ? previousDigits[previousIndex]
-        : null
-
-    changed[currentIndex] =
-      currentDigit !== previousDigit
-  }
-
-  return changed
+      return (
+        digit !==
+        (previousIndex >= 0
+          ? previousDigits[previousIndex]
+          : null)
+      )
+    },
+  )
 }
 
+/* -------------------------------------------------------------------------- */
+/* Main component                                                             */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Liquid-glass 3D market-number spinner.
+ * @param {object} props
+ * @param {number} props.value
+ * @param {number} props.decimals
+ * @param {'up'|'down'|'idle'} [props.direction]
+ * @param {'idle'|'live'|'revealing'|'result'} [props.phase]
+ * @param {boolean} [props.tease]
+ * @returns {JSX.Element}
  */
 function MarketNumberSpinner({
   value,
-  decimals,
-  tone = 'idle',
+  decimals = 2,
+  direction,
+  phase = 'idle',
   tease = false,
 }) {
-  const formatted =
-    value.toLocaleString('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
+  const formatted = useMemo(
+    () =>
+      value.toLocaleString(
+        'en-US',
+        {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
+        },
+      ),
+    [value, decimals],
+  )
+
+  /**
+   * Track the previous price.
+   *
+   * State is adjusted during render (rather than in an effect) so the
+   * digits never paint one frame with a stale comparison.
+   */
+  const [track, setTrack] =
+    useState({
+      current: formatted,
+      previous: null,
     })
 
-  const [previousFormatted, setPreviousFormatted] =
-    useState(null)
-
-  const [tracked, setTracked] =
-    useState(formatted)
-
-  const [epoch, setEpoch] =
-    useState(0)
-
-  const [resultVisible, setResultVisible] =
-    useState(false)
-
-  if (formatted !== tracked) {
-    setPreviousFormatted(tracked)
-    setTracked(formatted)
-    setEpoch(epoch + 1)
-    setResultVisible(false)
+  if (track.current !== formatted) {
+    setTrack({
+      current: formatted,
+      previous:
+        isMarketJump(
+          formatted,
+          track.current,
+        )
+          ? null
+          : track.current,
+    })
   }
 
-  const resultTone =
-    getResultTone(
-      formatted,
-      previousFormatted,
-    ) || tone
+  const previousFormatted =
+    track.previous
 
-  const changedDigits =
-    getChangedDigits(
+  /**
+   * Track reveal spins.
+   *
+   * `revealId` increments each time the phase enters 'revealing'. Reels
+   * spin when they see a new id. `settledId` catches up when the last
+   * reel finishes braking.
+   *
+   * Incrementing during render means the reels receive the new id in the
+   * same commit as the final price, so the result is never flashed before
+   * the spin starts.
+   */
+  const [trackedPhase, setTrackedPhase] =
+    useState(phase)
+
+  const [revealId, setRevealId] =
+    useState(0)
+
+  const [settledId, setSettledId] =
+    useState(0)
+
+  if (phase !== trackedPhase) {
+    setTrackedPhase(phase)
+
+    if (phase === 'revealing') {
+      setRevealId((id) => id + 1)
+    }
+  }
+
+  const isSpinning =
+    phase === 'revealing' &&
+    settledId !== revealId
+
+  /**
+   * Movement is derived from the actual market values. The engine's
+   * direction is only a fallback.
+   */
+  const resultDirection =
+    getMarketDirection(
       formatted,
       previousFormatted,
     )
 
-  const chars = formatted.split('')
+  const effectiveDirection =
+    resultDirection !== 'idle'
+      ? resultDirection
+      : direction ?? 'idle'
 
-  const digitCount =
-    chars.filter(
-      (char) => /\d/.test(char),
-    ).length
+  const changedDigits =
+    previousFormatted
+      ? getChangedDigits(
+          formatted,
+          previousFormatted,
+        )
+      : []
+
+  const chars =
+    formatted.split('')
+
+  const numericDigitCount =
+    chars.filter(isDigit).length
+
+  const fontSize =
+    getFontSize(numericDigitCount)
 
   let digitIndex = -1
 
   return (
     <div
       role="img"
-      aria-label={`Price ${formatted}`}
+      aria-label={`Market value ${formatted}`}
       className="
         relative
-        flex
         w-full
-        items-center
-        justify-center
-        py-[4px]
+        py-1
       "
     >
-      {/* =========================================================
-          3D LIQUID-GLASS OUTER CHASSIS
-
-          The outer rails intentionally fade toward their endpoints.
-          This prevents the frame from looking like a hard rectangle
-          and makes it feel like an illuminated HUD trace floating
-          around the market display.
-      ========================================================= */}
-
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-[1px]
-          z-[30]
-          overflow-hidden
-          rounded-[14px]
-        "
+      <ReelFrame
+        height={DISPLAY_HEIGHT}
+        tease={tease}
       >
-        {/* Deep recessed chassis */}
-        <span
-          className="
-            absolute
-            inset-0
-            rounded-[14px]
-            shadow-[
-              inset_0_0_0_1px_rgba(0,35,60,0.95),
-              inset_0_0_7px_rgba(0,8,18,0.95),
-              inset_0_2px_3px_rgba(0,191,255,0.12),
-              inset_0_-3px_5px_rgba(0,0,0,0.85),
-              0_0_12px_rgba(0,0,0,0.45)
-            ]
-          "
-        />
-
-        {/* =======================================================
-            TOP OUTER RAIL
-        ======================================================= */}
-
-        <span
-          className="
-            absolute
-            left-[5%]
-            right-[5%]
-            top-0
-            h-[2px]
-            rounded-full
-            bg-gradient-to-r
-            from-transparent
-            via-[#064b6b]
-            to-transparent
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        {/* Top illuminated trace */}
-        <span
-          className="
-            absolute
-            left-[11%]
-            top-0
-            h-[1px]
-            w-[29%]
-            rounded-full
-            bg-[#5FE8FF]
-            shadow-[
-              0_0_3px_rgba(95,232,255,1),
-              0_0_8px_rgba(0,191,255,0.9),
-              0_0_16px_rgba(0,191,255,0.45)
-            ]
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        {/* Top secondary reflection */}
-        <span
-          className="
-            absolute
-            right-[14%]
-            top-[1px]
-            h-px
-            w-[19%]
-            rounded-full
-            bg-cyan-300/60
-            shadow-[0_0_7px_rgba(34,211,238,0.55)]
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        {/* =======================================================
-            BOTTOM OUTER RAIL
-        ======================================================= */}
-
-        <span
-          className="
-            absolute
-            bottom-0
-            left-[5%]
-            right-[5%]
-            h-[2px]
-            rounded-full
-            bg-gradient-to-r
-            from-transparent
-            via-[#063d58]
-            to-transparent
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        {/* Bottom illuminated trace */}
-        <span
-          className="
-            absolute
-            bottom-0
-            left-[23%]
-            h-px
-            w-[34%]
-            rounded-full
-            bg-[#00BFFF]/80
-            shadow-[
-              0_0_3px_rgba(0,191,255,0.95),
-              0_0_9px_rgba(0,191,255,0.55)
-            ]
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        {/* Bottom secondary reflection */}
-        <span
-          className="
-            absolute
-            bottom-[1px]
-            right-[9%]
-            h-px
-            w-[15%]
-            bg-sky-300/35
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        {/* =======================================================
-            LEFT OUTER RAIL
-        ======================================================= */}
-
-        <span
-          className="
-            absolute
-            bottom-[10%]
-            left-0
-            top-[10%]
-            w-[2px]
-            rounded-full
-            bg-gradient-to-b
-            from-transparent
-            via-[#087da8]
-            to-transparent
-            shadow-[1px_0_4px_rgba(0,0,0,0.9)]
-          "
-          style={{
-            maskImage: OUTER_VERTICAL_FADE,
-            WebkitMaskImage:
-              OUTER_VERTICAL_FADE,
-          }}
-        />
-
-        {/* Bright left neon segment */}
-        <span
-          className="
-            absolute
-            left-0
-            top-[24%]
-            h-[27%]
-            w-[1px]
-            bg-[#45DCFF]
-            shadow-[
-              0_0_3px_rgba(69,220,255,1),
-              0_0_8px_rgba(0,191,255,0.75),
-              0_0_14px_rgba(0,191,255,0.35)
-            ]
-          "
-          style={{
-            maskImage: OUTER_VERTICAL_FADE,
-            WebkitMaskImage:
-              OUTER_VERTICAL_FADE,
-          }}
-        />
-
-        {/* =======================================================
-            RIGHT OUTER RAIL
-        ======================================================= */}
-
-        <span
-          className="
-            absolute
-            bottom-[10%]
-            right-0
-            top-[10%]
-            w-[2px]
-            rounded-full
-            bg-gradient-to-b
-            from-transparent
-            via-[#07506e]
-            to-transparent
-            shadow-[-1px_0_5px_rgba(0,0,0,0.95)]
-          "
-          style={{
-            maskImage: OUTER_VERTICAL_FADE,
-            WebkitMaskImage:
-              OUTER_VERTICAL_FADE,
-          }}
-        />
-
-        {/* Bright right neon segment */}
-        <span
-          className="
-            absolute
-            right-0
-            top-[15%]
-            h-[24%]
-            w-[1px]
-            bg-[#5FE8FF]/85
-            shadow-[
-              0_0_3px_rgba(95,232,255,0.95),
-              0_0_8px_rgba(0,191,255,0.65)
-            ]
-          "
-          style={{
-            maskImage: OUTER_VERTICAL_FADE,
-            WebkitMaskImage:
-              OUTER_VERTICAL_FADE,
-          }}
-        />
-
-        {/* =======================================================
-            3D CORNER LIGHTS
-
-            These remain concentrated around the corners, while
-            the rails themselves disappear into the background.
-        ======================================================= */}
-
-        <span
-          className="
-            absolute
-            left-0
-            top-0
-            h-[7px]
-            w-[18px]
-            rounded-tl-[10px]
-            border-l
-            border-t
-            border-[#00BFFF]/80
-            shadow-[
-              -1px_-1px_4px_rgba(0,191,255,0.35),
-              inset_2px_2px_4px_rgba(95,232,255,0.12)
-            ]
-          "
-        />
-
-        <span
-          className="
-            absolute
-            left-[2px]
-            top-[1px]
-            h-[2px]
-            w-[9px]
-            rounded-full
-            bg-[#5FE8FF]
-            shadow-[0_0_7px_rgba(95,232,255,0.85)]
-          "
-        />
-
-        <span
-          className="
-            absolute
-            right-0
-            top-0
-            h-[7px]
-            w-[18px]
-            rounded-tr-[10px]
-            border-r
-            border-t
-            border-[#00BFFF]/70
-            shadow-[
-              1px_-1px_4px_rgba(0,191,255,0.3),
-              inset_-2px_2px_4px_rgba(95,232,255,0.08)
-            ]
-          "
-        />
-
-        <span
-          className="
-            absolute
-            bottom-0
-            left-0
-            h-[7px]
-            w-[18px]
-            rounded-bl-[10px]
-            border-b
-            border-l
-            border-[#0079A8]/80
-            shadow-[
-              -1px_1px_5px_rgba(0,0,0,0.85),
-              inset_2px_-2px_4px_rgba(0,191,255,0.08)
-            ]
-          "
-        />
-
-        <span
-          className="
-            absolute
-            bottom-0
-            right-0
-            h-[7px]
-            w-[18px]
-            rounded-br-[10px]
-            border-b
-            border-r
-            border-[#00BFFF]/70
-            shadow-[
-              1px_1px_5px_rgba(0,0,0,0.9),
-              inset_-2px_-2px_4px_rgba(0,191,255,0.08)
-            ]
-          "
-        />
-
-        {/* =======================================================
-            GLASS REFLECTIONS
-        ======================================================= */}
-
-        <span
-          className="
-            absolute
-            left-[15%]
-            right-[22%]
-            top-[2px]
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-white/30
-            to-transparent
-            blur-[0.3px]
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-
-        <span
-          className="
-            absolute
-            -left-[8%]
-            top-[18%]
-            h-px
-            w-[35%]
-            rotate-[24deg]
-            bg-white/10
-            blur-[0.6px]
-          "
-        />
-
-        <span
-          className="
-            absolute
-            bottom-[3px]
-            left-[28%]
-            h-px
-            w-[24%]
-            bg-gradient-to-r
-            from-transparent
-            via-cyan-300/20
-            to-transparent
-          "
-          style={{
-            maskImage: OUTER_HORIZONTAL_FADE,
-            WebkitMaskImage:
-              OUTER_HORIZONTAL_FADE,
-          }}
-        />
-      </div>
-
-      {/* ===========================================================
-          REEL AREA
-      =========================================================== */}
-
-      <div
-        className="
-          relative
-          flex
-          w-[calc(100%-6px)]
-          items-center
-          justify-center
-          overflow-hidden
-          rounded-[11px]
-        "
-        style={{
-          perspective: '900px',
-          transformStyle: 'preserve-3d',
-        }}
-      >
-        {/* Dark recessed inner channel */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            inset-[2px]
-            z-[1]
-            rounded-[9px]
-            shadow-[
-              inset_0_0_0_1px_rgba(0,56,82,0.65),
-              inset_0_3px_7px_rgba(0,0,0,0.65),
-              inset_0_-3px_7px_rgba(0,0,0,0.75),
-              inset_4px_0_6px_rgba(0,0,0,0.35),
-              inset_-4px_0_6px_rgba(0,0,0,0.35)
-            ]
-          "
-        />
-
-        {/* Inner top neon-blue bevel */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[4%]
-            right-[4%]
-            top-[2px]
-            z-[22]
-            h-px
-            rounded-full
-            bg-gradient-to-r
-            from-transparent
-            via-[#00BFFF]/90
-            to-transparent
-            shadow-[0_0_6px_rgba(0,191,255,0.7)]
-          "
-        />
-
-        {/* Inner top bright fragment */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[13%]
-            top-[2px]
-            z-[23]
-            h-px
-            w-[17%]
-            bg-[#8CEFFF]
-            shadow-[0_0_5px_rgba(140,239,255,0.9)]
-          "
-        />
-
-        {/* Inner bottom blue bevel */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            bottom-[2px]
-            left-[7%]
-            right-[7%]
-            z-[22]
-            h-px
-            rounded-full
-            bg-gradient-to-r
-            from-transparent
-            via-[#007EA8]/75
-            to-transparent
-            shadow-[0_-1px_5px_rgba(0,191,255,0.3)]
-          "
-        />
-
-        {/* Inner left neon rail */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            bottom-[14%]
-            left-[2px]
-            top-[17%]
-            z-[22]
-            w-px
-            bg-gradient-to-b
-            from-transparent
-            via-[#00BFFF]/75
-            to-transparent
-            shadow-[0_0_5px_rgba(0,191,255,0.45)]
-          "
-        />
-
-        {/* Inner right dark/blue rail */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            bottom-[22%]
-            right-[2px]
-            top-[23%]
-            z-[22]
-            w-px
-            bg-gradient-to-b
-            from-transparent
-            via-[#07506B]/80
-            to-transparent
-          "
-        />
-
-        {/* Inner top glass reflection */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[7%]
-            right-[7%]
-            top-0
-            z-[20]
-            h-[11px]
-            rounded-t-[10px]
-            bg-gradient-to-b
-            from-white/[0.11]
-            via-cyan-100/[0.025]
-            to-transparent
-          "
-        />
-
-        {/* Inner bottom depth */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            bottom-0
-            left-[6%]
-            right-[6%]
-            z-[20]
-            h-[13px]
-            rounded-b-[10px]
-            bg-gradient-to-t
-            from-black/30
-            via-black/[0.07]
-            to-transparent
-          "
-        />
-
-        {/* Centre glass sheen */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            inset-x-[10%]
-            top-1/2
-            z-[19]
-            h-px
-            -translate-y-1/2
-            bg-gradient-to-r
-            from-transparent
-            via-white/[0.08]
-            to-transparent
-          "
-        />
-
         {chars.map((char, index) => {
-          const fromRight =
-            chars.length - 1 - index
-
-          if (!/\d/.test(char)) {
+          if (!isDigit(char)) {
             return (
               <span
-                key={`s${fromRight}`}
+                key={`separator-${index}`}
                 aria-hidden="true"
                 className="
                   relative
-                  z-10
-                  w-[9px]
+                  z-20
+                  flex
+                  h-full
+                  w-[10px]
                   shrink-0
-                  self-end
-                  pb-[13px]
-                  text-center
-                  text-[clamp(20px,6.2vw,26px)]
+                  items-center
+                  justify-center
                   font-black
                   leading-none
-                  text-sky-100
-                  [text-shadow:
-                    0_0_5px_rgba(186,230,253,0.8),
-                    0_0_10px_rgba(56,189,248,0.4)
-                  ]
+                  text-sky-100/80
                 "
+                style={{
+                  fontSize,
+                  transform:
+                    'translateY(0.3em)',
+                }}
               >
                 {char}
               </span>
@@ -911,154 +443,180 @@ function MarketNumberSpinner({
 
           digitIndex += 1
 
-          const digitChanged =
-            changedDigits[digitIndex]
+          const isLast =
+            digitIndex ===
+            numericDigitCount - 1
 
-          const digitTone =
-            resultVisible && digitChanged
-              ? resultTone
+          const tone =
+            !isSpinning &&
+            changedDigits[digitIndex]
+              ? effectiveDirection
               : 'idle'
 
-          const digitToneClass =
-            TONES[digitTone]?.className ||
-            TONES.idle.className
-
           return (
-            <Drum
-              key={`d${fromRight}`}
+            <DigitReel
+              key={`digit-${index}`}
               digit={Number(char)}
               order={digitIndex}
-              isLast={
-                digitIndex ===
-                digitCount - 1
+              total={numericDigitCount}
+              revealId={revealId}
+              tease={tease && isLast}
+              tone={
+                DIGIT_TONES[tone] ??
+                DIGIT_TONES.idle
               }
-              tease={tease}
-              epoch={epoch}
-              toneClass={digitToneClass}
+              fontSize={fontSize}
               onComplete={
-                digitIndex ===
-                digitCount - 1
+                isLast
                   ? () =>
-                      setResultVisible(true)
+                      setSettledId(
+                        revealId,
+                      )
                   : undefined
               }
             />
           )
         })}
-      </div>
+      </ReelFrame>
     </div>
   )
 }
 
+/* -------------------------------------------------------------------------- */
+/* Digit reel                                                                 */
+/* -------------------------------------------------------------------------- */
+
 /**
- * One mechanical 3D digit drum.
+ * One digit strip.
+ *
+ * The strip snaps to its digit whenever the digit changes, and plays the
+ * spin only when `revealId` has increased since the last run.
+ *
+ * @param {object} props
+ * @param {number} props.digit
+ * @param {number} props.order Position among the numeric digits, left to right.
+ * @param {number} props.total Number of numeric digits.
+ * @param {number} props.revealId Increments to request a reveal spin.
+ * @param {boolean} props.tease
+ * @param {{color:string,shadow:string}} props.tone
+ * @param {string} props.fontSize
+ * @param {() => void} [props.onComplete]
+ * @returns {JSX.Element}
  */
-function Drum({
+function DigitReel({
   digit,
   order,
-  isLast,
+  total,
+  revealId,
   tease,
-  epoch,
-  toneClass,
+  tone,
+  fontSize,
   onComplete,
 }) {
-  const stripRef = useRef(null)
-  const positionRef = useRef(digit)
+  const stripRef =
+    useRef(null)
 
-  const teaseRef = useRef(tease)
-  const onCompleteRef =
+  const positionRef =
+    useRef(digit)
+
+  const completeRef =
     useRef(onComplete)
 
-  useEffect(() => {
-    teaseRef.current = tease
-  }, [tease])
+  const handledRevealRef =
+    useRef(revealId)
 
   useEffect(() => {
-    onCompleteRef.current =
+    completeRef.current =
       onComplete
   }, [onComplete])
 
   useEffect(() => {
-    const strip = stripRef.current
+    const strip =
+      stripRef.current
 
     if (!strip) {
       return undefined
     }
 
-    let lastBlur = ''
-
-    const draw = (
-      position,
-      speed,
-    ) => {
-      const cell = mod10(position)
-
-      strip.style.transform =
-        `translateY(${DRUM_OFFSET - (cell + 10) * CELL_HEIGHT}px)`
-
-      const blur =
-        speed > 5
-          ? Math.min(
-              2.4,
-              speed / 10,
-            ).toFixed(1)
-          : ''
-
-      if (blur !== lastBlur) {
-        strip.style.filter =
-          blur
-            ? `blur(${blur}px)`
-            : 'none'
-
-        lastBlur = blur
-      }
-    }
-
-    const reduceMotion =
+    const reducedMotion =
       window.matchMedia(
         '(prefers-reduced-motion: reduce)',
       ).matches
 
-    if (
-      epoch === 0 ||
-      reduceMotion
-    ) {
-      positionRef.current = digit
+    const draw = (
+      position,
+      speed = 0,
+    ) => {
+      const cell =
+        mod10(position)
 
-      draw(digit, 0)
+      strip.style.transform =
+        `translate3d(
+          0,
+          ${-(cell + 10) * CELL_HEIGHT +
+            (DISPLAY_HEIGHT - CELL_HEIGHT) / 2}px,
+          0
+        )`
+
+      const blur =
+        speed > 5
+          ? Math.min(
+              2.2,
+              speed / 10,
+            )
+          : 0
+
+      strip.style.filter =
+        blur > 0
+          ? `blur(${blur.toFixed(1)}px)`
+          : 'none'
+    }
+
+    const spinRequested =
+      revealId !==
+      handledRevealRef.current
+
+    handledRevealRef.current =
+      revealId
+
+    /**
+     * Snap: ordinary price updates, first paint, and reduced motion.
+     */
+    if (
+      !spinRequested ||
+      reducedMotion
+    ) {
+      positionRef.current =
+        digit
+
+      draw(digit)
 
       if (
-        epoch > 0 &&
-        isLast
+        spinRequested &&
+        order === total - 1
       ) {
-        onCompleteRef.current?.()
+        completeRef.current?.()
       }
 
       return undefined
     }
 
-    const startPosition =
+    /**
+     * Reveal spin.
+     */
+    const start =
       positionRef.current
 
-    const startTime =
+    const startedAt =
       performance.now()
-
-    const teasing =
-      isLast &&
-      teaseRef.current
 
     const ramp =
       RAMP_MS / 1000
 
-    const spinSeconds =
+    const spin =
       (
         FIRST_SPIN_MS +
-        order * STAGGER_MS +
-        (
-          teasing
-            ? TEASE_EXTRA_SPIN_MS
-            : 0
-        )
+        order * STAGGER_MS
       ) / 1000
 
     const brake =
@@ -1067,42 +625,30 @@ function Drum({
     const settle =
       SETTLE_MS / 1000
 
-    const hold =
-      teasing
-        ? TEASE_HOLD_MS / 1000
-        : 0
+    const teaseHold =
+      tease ? 0.15 : 0
 
-    const creepSeconds =
-      teasing
-        ? TEASE_CREEP_MS / 1000
-        : 0
+    const teaseCreep =
+      tease ? 0.22 : 0
 
-    const creepCells =
-      teasing
-        ? TEASE_CREEP_CELLS
-        : 0
+    const ahead =
+      mod10(digit - start)
 
-    const effectiveSeconds =
-      spinSeconds -
+    const minimumTurns =
+      tease ? 1 : 0
+
+    const effective =
+      spin -
       ramp / 2 +
       brake / 3
 
-    const ahead =
-      mod10(
-        digit -
-          startPosition,
-      )
-
-    const minTurns =
-      teasing ? 1 : 0
-
-    const wholeTurns =
+    const turns =
       Math.max(
-        minTurns,
+        minimumTurns,
         Math.round(
           (
             SPIN_SPEED *
-              effectiveSeconds -
+              effective -
             ahead
           ) / 10,
         ),
@@ -1110,166 +656,144 @@ function Drum({
 
     const travel =
       ahead +
-      10 * wholeTurns
+      turns * 10
 
     const brakeEnd =
       travel -
-      creepCells
+      (tease ? 1 : 0)
 
     const speed =
-      brakeEnd /
-      effectiveSeconds
+      brakeEnd / effective
 
-    const spinEndPosition =
+    const spinEnd =
       speed *
-      (
-        spinSeconds -
-        ramp / 2
-      )
+      (spin - ramp / 2)
 
     const brakeDistance =
       (speed * brake) / 3
 
     const brakeAt =
-      spinSeconds
+      spin
 
     const holdAt =
-      brakeAt +
-      brake
+      brakeAt + brake
 
     const creepAt =
-      holdAt +
-      hold
+      holdAt + teaseHold
 
     const settleAt =
-      creepAt +
-      creepSeconds
+      creepAt + teaseCreep
 
     const endAt =
-      settleAt +
-      settle
+      settleAt + settle
 
     let frameId = 0
 
     const frame = (now) => {
-      const t =
+      const elapsed =
         Math.max(
           0,
-          (now - startTime) /
-            1000,
+          (now - startedAt) / 1000,
         )
 
-      let offset
+      let offset = 0
       let currentSpeed = 0
 
-      if (t < ramp) {
+      if (elapsed < ramp) {
         offset =
           (
             speed *
-            t *
-            t
+            elapsed *
+            elapsed
           ) /
           (2 * ramp)
 
         currentSpeed =
-          (speed * t) /
+          (speed * elapsed) /
           ramp
       } else if (
-        t < brakeAt
+        elapsed < brakeAt
       ) {
         offset =
           speed *
-          (
-            t -
-            ramp / 2
-          )
+          (elapsed - ramp / 2)
 
-        currentSpeed =
-          speed
+        currentSpeed = speed
       } else if (
-        t < holdAt
+        elapsed < holdAt
       ) {
-        const u =
+        const progress =
           (
-            t -
-            brakeAt
+            elapsed - brakeAt
           ) / brake
 
         offset =
-          spinEndPosition +
+          spinEnd +
           brakeDistance *
             (
               1 -
-              (1 - u) ** 3
+              (1 - progress) ** 3
             )
 
         currentSpeed =
           speed *
-          (1 - u) ** 2
+          (1 - progress) ** 2
       } else if (
-        t < creepAt
+        elapsed < creepAt
       ) {
         offset = brakeEnd
       } else if (
-        t < settleAt
+        elapsed < settleAt
       ) {
-        const u =
+        const progress =
           (
-            t -
-            creepAt
+            elapsed - creepAt
           ) /
-          creepSeconds
+          Math.max(
+            teaseCreep,
+            0.001,
+          )
 
         const eased =
-          u < 0.5
-            ? 4 * u ** 3
+          progress < 0.5
+            ? 4 * progress ** 3
             : 1 -
-              (
-                -2 * u +
-                2
-              ) ** 3 /
+              ((-2 * progress + 2) ** 3) /
                 2
 
         offset =
           brakeEnd +
-          creepCells *
+          (tease ? 1 : 0) *
             eased
       } else if (
-        t < endAt
+        elapsed < endAt
       ) {
-        const u =
+        const progress =
           (
-            t -
-            settleAt
-          ) /
-          settle
+            elapsed - settleAt
+          ) / settle
 
         offset =
           travel +
           OVERSHOOT *
             Math.sin(
-              Math.PI * u,
+              Math.PI *
+                progress,
             ) *
-            (1 - u)
+            (1 - progress)
       } else {
         positionRef.current =
           digit
 
-        draw(
-          digit,
-          0,
-        )
+        draw(digit)
 
-        if (isLast) {
-          onCompleteRef.current?.()
-        }
+        completeRef.current?.()
 
         return
       }
 
       const position =
-        startPosition +
-        offset
+        start + offset
 
       positionRef.current =
         mod10(position)
@@ -1280,15 +804,11 @@ function Drum({
       )
 
       frameId =
-        requestAnimationFrame(
-          frame,
-        )
+        requestAnimationFrame(frame)
     }
 
     frameId =
-      requestAnimationFrame(
-        frame,
-      )
+      requestAnimationFrame(frame)
 
     return () =>
       cancelAnimationFrame(
@@ -1297,179 +817,79 @@ function Drum({
   }, [
     digit,
     order,
-    isLast,
-    epoch,
+    total,
+    revealId,
+    tease,
   ])
 
   return (
     <span
       aria-hidden="true"
-      style={{
-        height: WINDOW_HEIGHT,
-        perspective:
-          '700px',
-      }}
       className="
         relative
+        z-20
         block
         min-w-0
         flex-1
         overflow-hidden
-        [container-type:inline-size]
-        [transform-style:preserve-3d]
       "
+      style={{
+        height: DISPLAY_HEIGHT,
+      }}
     >
-      {/* Individual reel chamber */}
+      {/* -------------------------------------------------------------- */}
+      {/* Individual reel chamber                                        */}
+      {/* -------------------------------------------------------------- */}
+
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          inset-[3px_1px]
-          z-[5]
-          overflow-hidden
-          rounded-[5px]
-        "
-      >
-        {/* Deep inner chamber */}
-        <span
-          className="
-            absolute
-            inset-0
-            rounded-[5px]
-            shadow-[
-              inset_0_0_5px_rgba(0,0,0,0.85),
-              inset_2px_0_4px_rgba(0,0,0,0.45),
-              inset_-2px_0_4px_rgba(0,0,0,0.5)
-            ]
-          "
-        />
-
-        {/* Left mechanical neon edge */}
-        <span
-          className="
-            absolute
-            left-0
-            top-[15%]
-            h-[70%]
-            w-px
-            bg-gradient-to-b
-            from-transparent
-            via-[#00BFFF]/75
-            to-transparent
-            shadow-[0_0_5px_rgba(0,191,255,0.42)]
-          "
-        />
-
-        {/* Bright left segment */}
-        <span
-          className="
-            absolute
-            left-0
-            top-[24%]
-            h-[23%]
-            w-px
-            bg-[#5FE8FF]
-            shadow-[0_0_5px_rgba(95,232,255,0.9)]
-          "
-        />
-
-        {/* Right recessed edge */}
-        <span
-          className="
-            absolute
-            right-0
-            top-[21%]
-            h-[57%]
-            w-px
-            bg-gradient-to-b
-            from-transparent
-            via-[#06425C]/90
-            to-transparent
-          "
-        />
-
-        {/* Right blue reflection */}
-        <span
-          className="
-            absolute
-            right-0
-            top-[30%]
-            h-[23%]
-            w-px
-            bg-[#00BFFF]/35
-            shadow-[0_0_4px_rgba(0,191,255,0.25)]
-          "
-        />
-
-        {/* Top bevel */}
-        <span
-          className="
-            absolute
-            left-[10%]
-            right-[10%]
-            top-0
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-[#5FE8FF]/50
-            to-transparent
-            shadow-[0_0_4px_rgba(0,191,255,0.35)]
-          "
-        />
-
-        {/* Bottom dark bevel */}
-        <span
-          className="
-            absolute
-            bottom-0
-            left-[10%]
-            right-[10%]
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-[#006B8F]/45
-            to-transparent
-          "
-        />
-
-        {/* Top glass reflection */}
-        <span
-          className="
-            absolute
-            left-[19%]
-            right-[20%]
-            top-[1px]
-            h-px
-            bg-white/15
-            blur-[0.4px]
-          "
-        />
-      </span>
-
-      {/* Cylindrical fade */}
-      <span
-        className="
-          absolute
-          inset-0
-          z-[10]
-          pointer-events-none
+          inset-y-[3px]
+          inset-x-[1px]
+          z-10
+          rounded-[4px]
         "
         style={{
-          maskImage: FADE_MASK,
-          WebkitMaskImage:
-            FADE_MASK,
-          boxShadow:
-            'inset 5px 0 8px rgba(0,0,0,0.10), inset -5px 0 8px rgba(0,0,0,0.10)',
+          boxShadow: `
+            inset 2px 0 4px rgba(0,0,0,0.50),
+            inset -2px 0 4px rgba(0,0,0,0.55),
+            inset 0 0 6px rgba(0,0,0,0.85)
+          `,
         }}
       />
 
-      {/* Reel strip */}
+      {/* -------------------------------------------------------------- */}
+      {/* Subtle reel separator                                           */}
+      {/* -------------------------------------------------------------- */}
+
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          bottom-[13%]
+          right-0
+          top-[13%]
+          z-30
+          w-px
+          bg-gradient-to-b
+          from-transparent
+          via-cyan-400/20
+          to-transparent
+        "
+      />
+
+      {/* -------------------------------------------------------------- */}
+      {/* Reel strip                                                      */}
+      {/* -------------------------------------------------------------- */}
+
       <span
         ref={stripRef}
         className="
           relative
-          z-[2]
+          z-20
           block
           will-change-transform
         "
@@ -1478,73 +898,70 @@ function Drum({
             'preserve-3d',
         }}
       >
-        {STRIP.map(
-          (d, i) => (
+        {DIGIT_STRIP.map(
+          (number, index) => (
             <span
-              key={i}
-              style={{
-                height:
-                  CELL_HEIGHT,
-                transform:
-                  'translateZ(0)',
-              }}
-              className={`
+              key={index}
+              className="
                 relative
                 grid
                 place-items-center
                 overflow-hidden
-                pb-[2px]
-                text-[clamp(20px,105cqw,30px)]
+                pb-[1px]
                 font-black
                 leading-none
                 tabular-nums
                 antialiased
-                transition-colors
-                duration-150
-                ease-out
-                ${toneClass}
-              `}
+              "
+              style={{
+                height: CELL_HEIGHT,
+                fontSize,
+                color: tone.color,
+                textShadow:
+                  tone.shadow,
+                transform:
+                  'translateZ(0)',
+              }}
             >
-              {/* Digit upper glass highlight */}
+              {/* Digit glass highlight */}
               <span
                 aria-hidden="true"
                 className="
                   pointer-events-none
                   absolute
-                  inset-x-[22%]
-                  top-[3px]
-                  h-[1px]
+                  left-[18%]
+                  right-[18%]
+                  top-[5px]
+                  h-px
                   bg-white/10
                   blur-[0.5px]
                 "
               />
 
-              {d}
+              {number}
             </span>
           ),
         )}
       </span>
 
-      {/* =========================================================
-          CYLINDER LIGHTING
-      ========================================================= */}
+      {/* -------------------------------------------------------------- */}
+      {/* Cylindrical lighting                                           */}
+      {/* -------------------------------------------------------------- */}
 
-      {/* Side curvature */}
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
           inset-0
-          z-[15]
+          z-40
           bg-gradient-to-r
-          from-black/[0.17]
+          from-black/[0.22]
           via-transparent
-          to-black/[0.18]
+          to-black/[0.20]
         "
       />
 
-      {/* Top depth */}
       <span
         aria-hidden="true"
         className="
@@ -1552,16 +969,15 @@ function Drum({
           absolute
           inset-x-0
           top-0
-          z-[16]
-          h-[15px]
+          z-40
+          h-[22px]
           bg-gradient-to-b
-          from-black/25
-          via-black/[0.07]
+          from-black/35
+          via-black/[0.08]
           to-transparent
         "
       />
 
-      {/* Bottom depth */}
       <span
         aria-hidden="true"
         className="
@@ -1569,31 +985,57 @@ function Drum({
           absolute
           inset-x-0
           bottom-0
-          z-[16]
-          h-[15px]
+          z-40
+          h-[22px]
           bg-gradient-to-t
-          from-black/25
-          via-black/[0.07]
+          from-black/40
+          via-black/[0.08]
           to-transparent
         "
       />
 
-      {/* Thin centre glass reflection */}
+      {/* -------------------------------------------------------------- */}
+      {/* Centre reflection                                               */}
+      {/* -------------------------------------------------------------- */}
+
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          inset-x-[16%]
+          left-[16%]
+          right-[16%]
           top-1/2
-          z-[17]
+          z-50
           h-px
           -translate-y-1/2
-          bg-gradient-to-r
+          bg-white/[0.06]
+        "
+      />
+
+      {/* -------------------------------------------------------------- */}
+      {/* Mechanical blue edge                                           */}
+      {/* -------------------------------------------------------------- */}
+
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          bottom-[20%]
+          left-0
+          top-[20%]
+          z-50
+          w-px
+          bg-gradient-to-b
           from-transparent
-          via-cyan-100/[0.07]
+          via-cyan-400/65
           to-transparent
         "
+        style={{
+          boxShadow:
+            '0 0 5px rgba(0,191,255,0.35)',
+        }}
       />
     </span>
   )
