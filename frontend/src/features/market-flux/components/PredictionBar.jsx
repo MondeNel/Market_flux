@@ -10,9 +10,25 @@
  * - Result/status message runs through the centre.
  * - Market movement percentage on the left.
  * - Compact countdown instrument in the centre.
- * - Round and stake information on the right.
+ * - Round, multiplier and stake information on the right.
+ * - Running round result is surfaced after settlement.
  * - Broken cyan structural accents.
  * - No heavy backdrop.
+ *
+ * GAME MODEL
+ * ---------------------------------------------------------------------------
+ * Each round has its own multiplier:
+ *
+ *   Round 1 = ×3
+ *   Round 2 = ×6
+ *   Round 3 = ×8
+ *
+ * The round amount is:
+ *
+ *   stake × multiplier
+ *
+ * A win adds that amount.
+ * A loss subtracts that amount.
  *
  * The component is presentational. All game state comes from the simulation
  * hook through props.
@@ -20,10 +36,7 @@
 
 import { ArrowDown, ArrowUp } from 'lucide-react'
 
-import {
-  ROUND_MS,
-  TOTAL_ROUNDS,
-} from '../hooks/useMarketSimulation'
+import { ROUND_MS, TOTAL_ROUNDS } from '../hooks/useMarketSimulation'
 
 /* ---------------------------------------------------------------------------
  * Constants
@@ -48,51 +61,26 @@ const money = (value) =>
  * @param {object} props
  * @param {'idle'|'live'|'revealing'|'result'} props.phase
  * @param {object|null} props.outcome
+ * @param {number|null} props.roundResult
+ * @param {number} props.multiplier
  * @returns {{text: string, tone: string}}
  */
-function getTitle({ phase, outcome }) {
-  if (outcome) {
-    if (outcome.bonus) {
+function getTitle({
+  phase,
+  outcome,
+  roundResult,
+  multiplier,
+}) {
+  if (outcome && roundResult !== null) {
+    if (roundResult > 0) {
       return {
-        text: `Bonus hit! +${money(
-          outcome.payout -
-            outcome.stake +
-            outcome.bonus,
-        )}`,
-        tone: 'text-amber-300',
-      }
-    }
-
-    if (outcome.won) {
-      return {
-        text: `Correct +${money(
-          outcome.payout -
-            outcome.stake,
-        )}`,
+        text: `Correct +${money(roundResult)} · ×${multiplier}`,
         tone: 'text-emerald-300',
       }
     }
 
-    if (outcome.nearMiss === 'bonus') {
-      return {
-        text: `So close to the bonus! -${money(
-          outcome.stake,
-        )}`,
-        tone: 'text-amber-300',
-      }
-    }
-
-    if (outcome.nearMiss === 'photo') {
-      return {
-        text: `Photo finish, missed by ${outcome.marginPct.toFixed(
-          2,
-        )}% -${money(outcome.stake)}`,
-        tone: 'text-amber-300',
-      }
-    }
-
     return {
-      text: `Missed -${money(outcome.stake)}`,
+      text: `Missed -${money(Math.abs(roundResult))} · ×${multiplier}`,
       tone: 'text-rose-300',
     }
   }
@@ -125,7 +113,10 @@ function getTitle({ phase, outcome }) {
  * @param {object} props
  * @param {number} props.changePct Price change since round open.
  * @param {number} props.round Current round, 1-based.
+ * @param {number} props.multiplier Current round multiplier.
  * @param {number} props.stake Current stake.
+ * @param {number|null} props.roundResult Result of the current/last round.
+ * @param {number} props.netResult Running net result for the sequence.
  * @param {'idle'|'live'|'revealing'|'result'} props.phase Current round phase.
  * @param {'up'|'down'|null} props.prediction Player prediction.
  * @param {number} props.elapsed Milliseconds elapsed in the live round.
@@ -135,7 +126,10 @@ function getTitle({ phase, outcome }) {
 function PredictionBar({
   changePct,
   round,
+  multiplier,
   stake,
+  roundResult,
+  netResult,
   phase,
   prediction,
   elapsed,
@@ -159,6 +153,16 @@ function PredictionBar({
         : 'text-white'
 
   /* -----------------------------------------------------------------------
+   * Round amount
+   * -------------------------------------------------------------------- */
+
+  const roundAmount =
+    Number(stake) * Number(multiplier)
+
+  const potentialText =
+    `R${Number(roundAmount).toLocaleString('en-US')}`
+
+  /* -----------------------------------------------------------------------
    * Countdown
    * -------------------------------------------------------------------- */
 
@@ -179,15 +183,43 @@ function PredictionBar({
         )
       : 0
 
+  /* -----------------------------------------------------------------------
+   * Status title
+   * -------------------------------------------------------------------- */
+
   const title = getTitle({
     phase,
     outcome,
+    roundResult,
+    multiplier,
   })
+
+  /* -----------------------------------------------------------------------
+   * Prediction icon
+   * -------------------------------------------------------------------- */
 
   const PredictionIcon =
     prediction === 'up'
       ? ArrowUp
       : ArrowDown
+
+  /* -----------------------------------------------------------------------
+   * Result styling
+   * -------------------------------------------------------------------- */
+
+  const resultTone =
+    roundResult === null
+      ? 'text-slate-500'
+      : roundResult > 0
+        ? 'text-emerald-300'
+        : 'text-rose-300'
+
+  const netTone =
+    netResult > 0
+      ? 'text-emerald-300'
+      : netResult < 0
+        ? 'text-rose-300'
+        : 'text-white'
 
   return (
     <section
@@ -201,6 +233,7 @@ function PredictionBar({
       {/* -------------------------------------------------------------------
        * Top structural rail
        * ---------------------------------------------------------------- */}
+
       <div
         aria-hidden="true"
         className="
@@ -217,7 +250,6 @@ function PredictionBar({
         "
       />
 
-      {/* Small mechanical breaks */}
       <span
         aria-hidden="true"
         className="
@@ -249,6 +281,7 @@ function PredictionBar({
       {/* -------------------------------------------------------------------
        * Status headline
        * ---------------------------------------------------------------- */}
+
       <div
         className="
           flex
@@ -299,6 +332,7 @@ function PredictionBar({
       {/* -------------------------------------------------------------------
        * Main status row
        * ---------------------------------------------------------------- */}
+
       <div
         className="
           relative
@@ -312,6 +346,7 @@ function PredictionBar({
         {/* ---------------------------------------------------------------
          * Price movement
          * ------------------------------------------------------------ */}
+
         <div
           className="
             flex
@@ -345,7 +380,6 @@ function PredictionBar({
             {pctText}
           </span>
 
-          {/* Movement direction indicator */}
           <div
             className={`
               mt-1
@@ -365,6 +399,7 @@ function PredictionBar({
         {/* ---------------------------------------------------------------
          * Countdown instrument
          * ------------------------------------------------------------ */}
+
         <div
           className="
             relative
@@ -373,7 +408,6 @@ function PredictionBar({
             shrink-0
           "
         >
-          {/* Outer atmospheric glow */}
           <span
             aria-hidden="true"
             className="
@@ -396,7 +430,6 @@ function PredictionBar({
             "
             aria-hidden="true"
           >
-            {/* Mechanical outer ring */}
             <circle
               cx="20"
               cy="20"
@@ -406,7 +439,6 @@ function PredictionBar({
               strokeWidth="1"
             />
 
-            {/* Dark track */}
             <circle
               cx="20"
               cy="20"
@@ -416,17 +448,12 @@ function PredictionBar({
               strokeWidth="3"
             />
 
-            {/* Progress */}
             <circle
               cx="20"
               cy="20"
               r={RING_RADIUS}
               fill="none"
-              stroke={
-                phase === 'revealing'
-                  ? 'rgb(103,232,249)'
-                  : 'rgb(103,232,249)'
-              }
+              stroke="rgb(103,232,249)"
               strokeWidth="2.8"
               strokeLinecap="round"
               strokeDasharray={RING_LENGTH}
@@ -445,7 +472,6 @@ function PredictionBar({
               }}
             />
 
-            {/* Small mechanical ticks */}
             <circle
               cx="20"
               cy="3"
@@ -462,6 +488,7 @@ function PredictionBar({
           </svg>
 
           {/* Centre content */}
+
           <span
             className="
               absolute
@@ -511,21 +538,39 @@ function PredictionBar({
         </div>
 
         {/* ---------------------------------------------------------------
-         * Round / stake
+         * Round / multiplier / stake
          * ------------------------------------------------------------ */}
+
         <div
           className="
             flex
-            min-w-[100px]
+            min-w-[116px]
             items-center
             justify-end
-            gap-3
+            gap-2.5
           "
         >
           <Stat
             label="Round"
             value={`${pad(round)}/${TOTAL_ROUNDS}`}
-            align="center"
+          />
+
+          <span
+            aria-hidden="true"
+            className="
+              h-6
+              w-px
+              bg-gradient-to-b
+              from-transparent
+              via-cyan-300/30
+              to-transparent
+            "
+          />
+
+          <Stat
+            label="Multiplier"
+            value={`×${multiplier}`}
+            valueClassName="text-cyan-300"
           />
 
           <span
@@ -542,16 +587,130 @@ function PredictionBar({
 
           <Stat
             label="Stake"
-            value={`R ${stake}`}
-            valueClassName="text-cyan-300"
-            align="center"
+            value={money(stake)}
           />
         </div>
       </div>
 
       {/* -------------------------------------------------------------------
+       * Round economics
+       * ---------------------------------------------------------------- */}
+
+      <div
+        className="
+          mt-2
+          flex
+          items-center
+          justify-between
+          gap-3
+        "
+      >
+        <div
+          className="
+            flex
+            items-center
+            gap-1.5
+          "
+        >
+          <span
+            className="
+              text-[6px]
+              font-bold
+              uppercase
+              tracking-[0.16em]
+              text-slate-600
+            "
+          >
+            Round value
+          </span>
+
+          <span
+            className="
+              text-[9px]
+              font-black
+              tabular-nums
+              text-white/80
+            "
+          >
+            {money(stake)} × {multiplier}
+          </span>
+
+          <span
+            className="
+              text-[8px]
+              font-bold
+              text-cyan-300
+            "
+          >
+            = {potentialText}
+          </span>
+        </div>
+
+        <div
+          className="
+            flex
+            items-center
+            gap-1.5
+          "
+        >
+          <span
+            className="
+              text-[6px]
+              font-bold
+              uppercase
+              tracking-[0.16em]
+              text-slate-600
+            "
+          >
+            Net
+          </span>
+
+          <span
+            className={`
+              text-[9px]
+              font-black
+              tabular-nums
+              ${netTone}
+            `}
+          >
+            {netResult > 0 ? '+' : ''}
+            {money(netResult)}
+          </span>
+        </div>
+      </div>
+
+      {/* -------------------------------------------------------------------
+       * Last round result
+       * ---------------------------------------------------------------- */}
+
+      {roundResult !== null && phase === 'result' && (
+        <div
+          className="
+            mt-1
+            flex
+            justify-center
+          "
+        >
+          <span
+            className={`
+              text-[7px]
+              font-bold
+              uppercase
+              tracking-[0.18em]
+              ${resultTone}
+            `}
+          >
+            Round result{' '}
+            {roundResult > 0 ? '+' : ''}
+            {money(roundResult)}
+          </span>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------------
        * Bottom structural rail
        * ---------------------------------------------------------------- */}
+
       <div
         aria-hidden="true"
         className="
@@ -564,7 +723,15 @@ function PredictionBar({
       >
         <span className="h-px w-8 bg-cyan-400/35" />
 
-        <span className="h-px flex-1 bg-gradient-to-r from-cyan-400/20 to-transparent" />
+        <span
+          className="
+            h-px
+            flex-1
+            bg-gradient-to-r
+            from-cyan-400/20
+            to-transparent
+          "
+        />
 
         <span
           className="
@@ -576,7 +743,15 @@ function PredictionBar({
           "
         />
 
-        <span className="h-px flex-1 bg-gradient-to-l from-cyan-400/20 to-transparent" />
+        <span
+          className="
+            h-px
+            flex-1
+            bg-gradient-to-l
+            from-cyan-400/20
+            to-transparent
+          "
+        />
 
         <span className="h-px w-8 bg-cyan-400/35" />
       </div>
@@ -595,28 +770,21 @@ function PredictionBar({
  * @param {string} props.label Statistic label.
  * @param {string|number} props.value Statistic value.
  * @param {string} [props.valueClassName='text-white'] Value styling.
- * @param {'left'|'center'} [props.align='center'] Alignment.
  * @returns {JSX.Element}
  */
 function Stat({
   label,
   value,
   valueClassName = 'text-white',
-  align = 'center',
 }) {
-  const alignment =
-    align === 'left'
-      ? 'items-start'
-      : 'items-center'
-
   return (
     <div
-      className={`
+      className="
         flex
-        min-w-[42px]
+        min-w-[34px]
         flex-col
-        ${alignment}
-      `}
+        items-center
+      "
     >
       <span
         className="
@@ -633,7 +801,7 @@ function Stat({
       <span
         className={`
           mt-1
-          text-[12px]
+          text-[10px]
           font-black
           leading-none
           tabular-nums
