@@ -2,552 +2,422 @@
  * @file src/features/market-flux/components/MultiplierLadder.jsx
  *
  * @description
- * Market Flux three-round progression instrument.
+ * Bonus panel for Market Flux: the per-round multiplier table.
  *
- * DESIGN
+ * LAYOUT
  * ---------------------------------------------------------------------------
- * The game consists of three fixed rounds:
+ *   ┌──────────────[ BONUS ]──────────────┐
+ *   │  ┌───────────────────────────┐      │
+ *   │  │ Round 3  →  ×8            │   🪙 │
+ *   │  │ Round 2  →  ×6            │      │
+ *   │  │ Round 1  →  ×3     R30    │      │
+ *   │  └───────────────────────────┘      │
+ *   └─────────────────────────────────────┘
  *
- *   Round 1 → ×3
- *   Round 2 → ×6
- *   Round 3 → ×8
+ * - Best payout first, matching the reference.
+ * - The current round is highlighted and also shows the amount at stake
+ *   (stake × multiplier). A win adds it and a loss removes it.
+ * - Rounds already played this sequence are dimmed with a tick, whether
+ *   they were won or lost.
  *
- * Each round has an independent value:
+ * The rows read from ROUND_CONFIG, so changing a multiplier in the
+ * simulation hook updates this table automatically.
  *
- *   stake × multiplier
+ * "Round N" is written out in full rather than "R N", because R also means
+ * rand and "R3 → ×8" next to "R30" is easy to misread.
  *
- * The component visually communicates:
+ * LAYOUT OWNERSHIP
+ * ---------------------------------------------------------------------------
+ * No landmark and no horizontal padding. The section in MarketFlux.jsx
+ * owns both.
  *
- * - Completed rounds
- * - Current round
- * - Upcoming rounds
- * - Current multiplier
- * - Current round value
- * - Three-round progression
- *
- * Visual language:
- * - Floating liquid-glass structure
- * - Dark mechanical depth
- * - Neon-blue structural lighting
- * - Cyan illumination around the active round
- * - Subtle green completion state
- * - No conventional solid card
- * - No old step/ladder progression
+ * Presentational only; all state comes from the simulation hook.
  */
 
-import { Check } from 'lucide-react'
+import { useId } from 'react'
+import { ArrowRight, Check } from 'lucide-react'
 
-/* ---------------------------------------------------------------------------
- * Constants
- * ------------------------------------------------------------------------ */
-
-export const ROUND_CONFIG = [
-  {
-    round: 1,
-    multiplier: 3,
-  },
-  {
-    round: 2,
-    multiplier: 6,
-  },
-  {
-    round: 3,
-    multiplier: 8,
-  },
-]
-
-const TOTAL_ROUNDS = ROUND_CONFIG.length
-
-/* ---------------------------------------------------------------------------
- * Formatting
- * ------------------------------------------------------------------------ */
-
-const money = (value) =>
-  `R${Number(value).toLocaleString('en-US')}`
-
-/* ---------------------------------------------------------------------------
- * Main component
- * ------------------------------------------------------------------------ */
+import { ROUND_CONFIG } from '../hooks/useMarketSimulation'
+import { formatMoney } from '../utils/formatMoney'
 
 /**
- * Render the three-round Market Flux progression.
- *
+ * Highest payout first.
+ */
+const ROWS = [...ROUND_CONFIG].reverse()
+
+/* -------------------------------------------------------------------------- */
+/* Row styling                                                                */
+/* -------------------------------------------------------------------------- */
+
+const ROW_STATES = {
+  current:
+    'border-cyan-300/55 bg-cyan-400/[0.14] text-white shadow-[0_0_10px_rgba(40,200,255,0.25)]',
+
+  played:
+    'border-transparent text-white/35',
+
+  upcoming:
+    'border-transparent text-white/70',
+}
+
+/* -------------------------------------------------------------------------- */
+/* Main component                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
  * @param {object} props
  * @param {number} props.round Current round, 1-based.
- * @param {number} props.multiplier Current round multiplier.
- * @param {number} props.completedRounds Number of completed rounds.
- * @param {number} props.stake Current stake.
+ * @param {number} [props.roundsPlayed] Rounds finished in this sequence,
+ *   win or lose. Defaults to `round - 1`.
+ * @param {number} [props.stake] Current stake. When given, the current row
+ *   shows the amount at stake.
  * @returns {JSX.Element}
  */
 function MultiplierLadder({
   round,
-  multiplier,
-  completedRounds,
+  roundsPlayed,
   stake,
 }) {
-  const currentRound =
-    ROUND_CONFIG.find(
-      (item) => item.round === round,
-    ) ?? ROUND_CONFIG[0]
-
-  return (
-    <section
-      aria-label="Round progression"
-      className="
-        relative
-        w-full
-      "
-    >
-      {/* -------------------------------------------------------------------
-       * Header
-       * ---------------------------------------------------------------- */}
-
-      <div
-        className="
-          mb-2
-          flex
-          items-center
-          justify-between
-          px-1
-        "
-      >
-        <span
-          className="
-            text-[7px]
-            font-bold
-            uppercase
-            tracking-[0.24em]
-            text-slate-500
-          "
-        >
-          Round progression
-        </span>
-
-        <span
-          className="
-            text-[7px]
-            font-bold
-            uppercase
-            tracking-[0.18em]
-            text-cyan-300/70
-          "
-        >
-          {completedRounds}/{TOTAL_ROUNDS} complete
-        </span>
-      </div>
-
-      {/* -------------------------------------------------------------------
-       * Progress structure
-       * ---------------------------------------------------------------- */}
-
-      <div
-        className="
-          relative
-          h-[92px]
-          w-full
-        "
-      >
-        {/* ---------------------------------------------------------------
-         * Background structural rail
-         * ------------------------------------------------------------ */}
-
-        <div
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[12%]
-            right-[12%]
-            top-[25px]
-            h-px
-            bg-cyan-400/15
-          "
-        />
-
-        {/* ---------------------------------------------------------------
-         * Completed progress rail
-         * ------------------------------------------------------------ */}
-
-        <div
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[12%]
-            top-[25px]
-            h-px
-            bg-gradient-to-r
-            from-emerald-300/80
-            via-cyan-300/70
-            to-cyan-300/30
-            shadow-[0_0_6px_rgba(80,220,255,0.55)]
-            transition-[width]
-            duration-500
-          "
-          style={{
-            width:
-              completedRounds <= 0
-                ? '0%'
-                : completedRounds >= TOTAL_ROUNDS
-                  ? '76%'
-                  : `${completedRounds * 38}%`,
-          }}
-        />
-
-        {/* ---------------------------------------------------------------
-         * Round nodes
-         * ------------------------------------------------------------ */}
-
-        <div
-          className="
-            relative
-            z-10
-            grid
-            h-full
-            grid-cols-3
-            gap-2
-          "
-        >
-          {ROUND_CONFIG.map((item) => {
-            const isCurrent =
-              item.round === round
-
-            const isCompleted =
-              item.round <= completedRounds
-
-            const isUpcoming =
-              !isCurrent &&
-              !isCompleted
-
-            return (
-              <RoundNode
-                key={item.round}
-                round={item.round}
-                multiplier={item.multiplier}
-                stake={stake}
-                current={isCurrent}
-                completed={isCompleted}
-                upcoming={isUpcoming}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* -------------------------------------------------------------------
-       * Current round readout
-       * ---------------------------------------------------------------- */}
-
-      <div
-        className="
-          mt-1
-          flex
-          items-center
-          justify-center
-          gap-2
-        "
-      >
-        <span
-          className="
-            h-px
-            w-8
-            bg-gradient-to-r
-            from-transparent
-            to-cyan-400/30
-          "
-        />
-
-        <span
-          className="
-            text-[7px]
-            font-bold
-            uppercase
-            tracking-[0.18em]
-            text-slate-500
-          "
-        >
-          Current round
-        </span>
-
-        <span
-          className="
-            text-[9px]
-            font-black
-            tabular-nums
-            text-cyan-200
-          "
-        >
-          ×{currentRound.multiplier}
-        </span>
-
-        <span
-          className="
-            text-[7px]
-            font-bold
-            text-slate-600
-          "
-        >
-          ·
-        </span>
-
-        <span
-          className="
-            text-[9px]
-            font-black
-            tabular-nums
-            text-white/80
-          "
-        >
-          {money(
-            Number(stake) *
-              Number(currentRound.multiplier),
-          )}
-        </span>
-
-        <span
-          className="
-            h-px
-            w-8
-            bg-gradient-to-l
-            from-transparent
-            to-cyan-400/30
-          "
-        />
-      </div>
-    </section>
-  )
-}
-
-/* ---------------------------------------------------------------------------
- * Round node
- * ------------------------------------------------------------------------ */
-
-/**
- * Render one round in the progression.
- *
- * @param {object} props
- * @param {number} props.round Round number.
- * @param {number} props.multiplier Round multiplier.
- * @param {number} props.stake Current stake.
- * @param {boolean} props.current Whether this is the active round.
- * @param {boolean} props.completed Whether this round has been completed.
- * @param {boolean} props.upcoming Whether this round is upcoming.
- * @returns {JSX.Element}
- */
-function RoundNode({
-  round,
-  multiplier,
-  stake,
-  current,
-  completed,
-  upcoming,
-}) {
-  const amount =
-    Number(stake) *
-    Number(multiplier)
+  const played =
+    roundsPlayed ?? round - 1
 
   return (
     <div
+      role="group"
+      aria-label="Round multipliers"
       className="
         relative
-        flex
-        flex-col
-        items-center
+        pt-2.5
       "
+    >
+      <div
+        className="
+          market-flux-mechanical
+          relative
+          rounded-[14px]
+          border
+          border-cyan-300/25
+          bg-black/45
+          px-2.5
+          pb-2.5
+          pt-4
+        "
+      >
+        {/* Title tab on the top edge */}
+
+        <p
+          className="
+            absolute
+            left-1/2
+            top-0
+            -translate-x-1/2
+            -translate-y-1/2
+            rounded-full
+            border
+            border-cyan-300/30
+            bg-[#04101a]
+            px-3
+            py-px
+            text-[10px]
+            font-bold
+            uppercase
+            tracking-[0.3em]
+            text-cyan-200
+          "
+        >
+          Bonus
+        </p>
+
+        <div
+          className="
+            grid
+            grid-cols-[1fr_auto]
+            items-center
+            gap-3
+          "
+        >
+          {/* ============================================================ */}
+          {/* Payout table                                                  */}
+          {/* ============================================================ */}
+
+          <ul
+            className="
+              flex
+              flex-col
+              gap-0.5
+              rounded-[10px]
+              border
+              border-white/10
+              bg-black/40
+              p-1
+            "
+          >
+            {ROWS.map((item) => {
+              const current =
+                item.round === round
+
+              const state =
+                current
+                  ? 'current'
+                  : item.round <= played
+                    ? 'played'
+                    : 'upcoming'
+
+              return (
+                <PayoutRow
+                  key={item.round}
+                  round={item.round}
+                  multiplier={item.multiplier}
+                  state={state}
+                  amount={
+                    current &&
+                    stake !== undefined
+                      ? stake * item.multiplier
+                      : null
+                  }
+                />
+              )
+            })}
+          </ul>
+
+          {/* ============================================================ */}
+          {/* Multiplier icon                                               */}
+          {/* ============================================================ */}
+
+          <CoinStack className="h-14 w-14" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Payout row                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @param {object} props
+ * @param {number} props.round
+ * @param {number} props.multiplier
+ * @param {'current'|'played'|'upcoming'} props.state
+ * @param {number|null} props.amount Amount at stake (current row only).
+ * @returns {JSX.Element}
+ */
+function PayoutRow({
+  round,
+  multiplier,
+  state,
+  amount,
+}) {
+  const current =
+    state === 'current'
+
+  return (
+    <li
       aria-current={
         current
           ? 'step'
           : undefined
       }
+      className={`
+        flex
+        h-[22px]
+        items-center
+        gap-1.5
+        rounded-[7px]
+        border
+        px-1.5
+        transition-colors
+        duration-300
+        ${ROW_STATES[state]}
+      `}
     >
-      {/* ---------------------------------------------------------------
-       * Node
-       * ------------------------------------------------------------ */}
+      {/* Played tick (the slot is always reserved so rows line up) */}
 
-      <div
-        className={`
-          relative
-          flex
-          h-[52px]
-          w-[52px]
-          items-center
-          justify-center
-          rounded-[15px]
-          border
-          transition-all
-          duration-300
-
-          ${
-            current
-              ? `
-                border-cyan-200/80
-                bg-[linear-gradient(145deg,rgba(35,130,190,0.34),rgba(2,12,24,0.86))]
-                shadow-[0_0_16px_rgba(40,190,255,0.55),inset_0_1px_0_rgba(255,255,255,0.18)]
-              `
-              : completed
-                ? `
-                  border-emerald-300/45
-                  bg-[linear-gradient(145deg,rgba(20,90,75,0.24),rgba(2,12,18,0.78))]
-                  shadow-[0_0_8px_rgba(60,220,170,0.18)]
-                `
-                : `
-                  border-cyan-300/18
-                  bg-[linear-gradient(145deg,rgba(12,35,55,0.24),rgba(2,8,16,0.72))]
-                `
-          }
-        `}
+      <span
+        aria-hidden="true"
+        className="
+          grid
+          w-3
+          shrink-0
+          place-items-center
+        "
       >
-        {/* Mechanical inner edge */}
-
-        <span
-          aria-hidden="true"
-          className={`
-            pointer-events-none
-            absolute
-            inset-[3px]
-            rounded-[12px]
-            border
-            ${
-              current
-                ? 'border-cyan-200/15'
-                : 'border-white/[0.035]'
-            }
-          `}
-        />
-
-        {/* Top reflection */}
-
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-3
-            right-3
-            top-1.5
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-white/20
-            to-transparent
-          "
-        />
-
-        {/* Completed check */}
-
-        {completed && !current ? (
+        {state === 'played' && (
           <Check
-            aria-hidden="true"
             className="
-              relative
-              h-5
-              w-5
-              text-emerald-300
-              drop-shadow-[0_0_6px_rgba(60,230,170,0.7)]
+              h-3
+              w-3
+              text-emerald-300/70
             "
             strokeWidth={3}
           />
-        ) : (
-          <span
-            className={`
-              relative
-              text-[18px]
-              font-black
-              tabular-nums
-              ${
-                current
-                  ? 'text-white'
-                  : upcoming
-                    ? 'text-white/55'
-                    : 'text-white/75'
-              }
-            `}
-          >
-            {round}
-          </span>
         )}
+      </span>
 
-        {/* Active glow */}
+      <span
+        className="
+          min-w-0
+          flex-1
+          truncate
+          text-[11px]
+          font-bold
+        "
+      >
+        Round {round}
+      </span>
 
-        {current && (
-          <span
-            aria-hidden="true"
-            className="
-              pointer-events-none
-              absolute
-              -inset-3
-              -z-10
-              rounded-full
-              bg-[radial-gradient(circle,rgba(50,190,255,0.28),transparent_68%)]
-            "
-          />
-        )}
-      </div>
-
-      {/* ---------------------------------------------------------------
-       * Multiplier
-       * ------------------------------------------------------------ */}
+      <ArrowRight
+        aria-hidden="true"
+        className="
+          h-3
+          w-3
+          shrink-0
+          text-cyan-300/70
+        "
+        strokeWidth={2.5}
+      />
 
       <span
         className={`
-          mt-1.5
-          text-[10px]
+          w-6
+          shrink-0
+          text-right
+          text-[13px]
           font-black
           tabular-nums
           ${
             current
-              ? 'text-cyan-200 drop-shadow-[0_0_5px_rgba(80,220,255,0.65)]'
-              : completed
-                ? 'text-emerald-300/75'
-                : 'text-white/55'
+              ? 'text-cyan-200 drop-shadow-[0_0_6px_rgba(80,220,255,0.6)]'
+              : ''
           }
         `}
       >
         ×{multiplier}
       </span>
 
-      {/* ---------------------------------------------------------------
-       * Round value
-       * ------------------------------------------------------------ */}
-
-      <span
-        className={`
-          mt-0.5
-          text-[7px]
-          font-bold
-          tabular-nums
-          ${
-            current
-              ? 'text-white/85'
-              : 'text-slate-500'
-          }
-        `}
-      >
-        {money(amount)}
-      </span>
-
-      {/* ---------------------------------------------------------------
-       * Round label
-       * ------------------------------------------------------------ */}
+      {/* Amount column (reserved on every row so the multipliers align) */}
 
       <span
         className="
-          mt-0.5
-          text-[5px]
+          w-[44px]
+          shrink-0
+          text-right
+          text-[10px]
           font-bold
-          uppercase
-          tracking-[0.15em]
-          text-slate-600
+          tabular-nums
+          text-cyan-200/80
         "
       >
-        Round {round}
+        {amount !== null &&
+          formatMoney(amount)}
       </span>
-    </div>
+    </li>
   )
 }
 
-/* ---------------------------------------------------------------------------
- * Export
- * ------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/* Coin stack                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Stacked-coins multiplier icon: three coins, an up arrow, a small cross.
+ *
+ * @param {object} props
+ * @param {string} [props.className] Sizing, e.g. "h-14 w-14".
+ * @returns {JSX.Element}
+ */
+function CoinStack({ className = '' }) {
+  const id =
+    useId().replace(/:/g, '')
+
+  const sideId =
+    `coin-side-${id}`
+
+  const topId =
+    `coin-top-${id}`
+
+  /* Coin centres, bottom to top. */
+  const coins = [34, 27, 20]
+
+  return (
+    <svg
+      viewBox="0 0 56 54"
+      aria-hidden="true"
+      className={className}
+      style={{
+        filter:
+          'drop-shadow(0 0 6px rgba(40,190,255,0.35))',
+      }}
+    >
+      <defs>
+        <linearGradient
+          id={sideId}
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="0"
+        >
+          <stop offset="0" stopColor="#12344a" />
+          <stop offset="0.45" stopColor="#6fd3ff" />
+          <stop offset="1" stopColor="#0d2b3f" />
+        </linearGradient>
+
+        <linearGradient
+          id={topId}
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+        >
+          <stop offset="0" stopColor="#d6f6ff" />
+          <stop offset="1" stopColor="#3aa6d8" />
+        </linearGradient>
+      </defs>
+
+      {coins.map((cy) => (
+        <g key={cy}>
+          {/* Coin edge */}
+          <path
+            d={`M13 ${cy} v5 a15 5.5 0 0 0 30 0 v-5 a15 5.5 0 0 0 -30 0 Z`}
+            fill={`url(#${sideId})`}
+            stroke="rgba(160,230,255,0.55)"
+            strokeWidth="0.6"
+          />
+
+          {/* Coin face */}
+          <ellipse
+            cx="28"
+            cy={cy}
+            rx="15"
+            ry="5.5"
+            fill={`url(#${topId})`}
+            stroke="rgba(200,240,255,0.8)"
+            strokeWidth="0.6"
+          />
+        </g>
+      ))}
+
+      {/* Up arrow */}
+      <path
+        d="M28 12 V4 M23.5 8.5 L28 4 L32.5 8.5"
+        fill="none"
+        stroke="#7DE8FF"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Multiplier cross */}
+      <path
+        d="M44 44 l5 5 M49 44 l-5 5"
+        fill="none"
+        stroke="#7DE8FF"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
 
 export default MultiplierLadder
