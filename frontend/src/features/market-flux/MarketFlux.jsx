@@ -2,71 +2,89 @@
  * @file src/features/market-flux/MarketFlux.jsx
  *
  * @description
- * Market Flux game screen.
+ * Main Market Flux game screen.
  *
- * Layout, top to bottom:
- * header, market ticker, central market-number play area,
- * UP/DOWN direction buttons, prediction bar, stake control.
+ * The screen is intentionally kept as a composition layer. Game rules,
+ * market simulation, round settlement and balance calculations are owned by
+ * useMarketSimulation().
  *
- * The game engine is owned by useMarketSimulation().
- * This component is responsible only for composing the UI.
+ * SCREEN LAYERS (top to bottom)
+ * ---------------------------------------------------------------------------
+ *   1. Header          MarketFluxHeader (balance, rank, followers)
+ *   2. Asset row       MarketTicker (selector, price, change, sparkline)
+ *   3. Reel            MarketNumberSpinner, the only flexible-height section,
+ *                      with StatusLine directly beneath it
+ *   4. Round panel     RoundInfoPanel (round, spins left, stake)
+ *   5. Bonus panel     MultiplierLadder (payout table)
+ *   6. Action row      SwipePanel UP, SpinButton, SwipePanel DOWN
+ *
+ * The persistent navigation sits below all of this in AppShell.
+ *
+ * STACKING
+ * ---------------------------------------------------------------------------
+ *   z-50  asset row     the market dropdown must open over everything below
+ *   z-30  action row
+ *   z-40  spin hub      raised above its neighbours, overlapping the bonus panel
+ *   z-10  info panels
+ *
+ * LAYOUT OWNERSHIP
+ * ---------------------------------------------------------------------------
+ * The wrappers here own horizontal padding. The components inside them own
+ * none, except the header, whose brand rail runs to the screen edge.
  *
  * GAME FLOW
  * ---------------------------------------------------------------------------
- * 1. Market value continuously updates.
- * 2. Player clicks UP or DOWN.
- * 3. The click commits the prediction and locks the stake.
- * 4. The market continues moving.
- * 5. The final value is revealed by MarketNumberSpinner.
- * 6. The engine applies the result after the reveal.
+ * 1. The selected market continuously produces simulated market data.
+ * 2. The player selects UP or DOWN.
+ * 3. The prediction starts the current round.
+ * 4. MarketNumberSpinner reveals the resulting market value.
+ * 5. The engine determines whether the prediction was correct.
+ * 6. The round multiplier is applied:
+ *
+ *      Round 1 -> ×3
+ *      Round 2 -> ×6
+ *      Round 3 -> ×8
+ *
+ * 7. The resulting amount is added to or removed from the balance.
+ * 8. After Round 3, a new three-round sequence begins.
  */
 
 import MarketFluxHeader from './components/MarketFluxHeader'
 import MarketTicker from './components/MarketTicker'
 import MarketNumberSpinner from './components/MarketNumberSpinner'
-import MultiplierLadder, {
-  BonusBadge,
-} from './components/MultiplierLadder'
-import PredictionBar from './components/PredictionBar'
-import StakeControl from './components/StakeControl'
+import StatusLine from './components/StatusLine'
+import RoundInfoPanel from './components/RoundInfoPanel'
+import MultiplierLadder from './components/MultiplierLadder'
 import SwipePanel from './components/SwipePanel'
+import SpinButton from './components/SpinButton'
+
 import {
-  TOP_STEP,
   useMarketSimulation,
 } from './hooks/useMarketSimulation'
 
 function MarketFlux() {
   const game = useMarketSimulation()
 
-  /**
-   * A prediction is considered committed once the player
-   * has left the idle phase.
-   */
   const roundActive =
     game.phase !== 'idle'
 
-  /**
-   * Market definitions are expected to expose their decimal
-   * precision. Fall back to two decimals for markets that do
-   * not explicitly define it.
-   */
   const decimals =
     game.market?.decimals ?? 2
 
   return (
     <div
       className="
+        relative
         flex
         min-h-0
         w-full
         flex-1
         flex-col
-        gap-3
-        pb-3
+        pb-2
       "
     >
       {/* ================================================================== */}
-      {/* Header                                                             */}
+      {/* 1. HEADER                                                          */}
       {/* ================================================================== */}
 
       <MarketFluxHeader
@@ -74,112 +92,144 @@ function MarketFlux() {
       />
 
       {/* ================================================================== */}
-      {/* Market ticker                                                      */}
+      {/* 2. ASSET ROW                                                       */}
       {/* ================================================================== */}
 
-      <MarketTicker
-        market={game.market}
-        markets={game.markets}
-        price={game.price}
-        tease={game.teasing}
-        canSelect={game.canSelectMarket}
-        onSelect={game.selectMarket}
-      />
-
-      {/* ================================================================== */}
-      {/* Main play area                                                     */}
-      {/* ================================================================== */}
-
-      <section
-        aria-label="Market Flux play area"
+      <div
         className="
+          relative
+          z-50
+          mt-1
+          shrink-0
+          px-3
+        "
+      >
+        <MarketTicker
+          market={game.market}
+          markets={game.markets}
+          price={game.price}
+          canSelect={game.canSelectMarket}
+          onSelect={game.selectMarket}
+          phase={game.phase}
+          changePct={game.changePct}
+          startPrice={game.startPrice}
+        />
+      </div>
+
+      {/* ================================================================== */}
+      {/* GAME MACHINE                                                       */}
+      {/* ================================================================== */}
+
+      <main
+        aria-label="Market Flux game"
+        className="
+          relative
           flex
           min-h-0
           flex-1
           flex-col
-          px-[7.2%]
         "
       >
-        {/* ---------------------------------------------------------------- */}
-        {/* Bonus badge                                                      */}
-        {/* ---------------------------------------------------------------- */}
+        {/* -------------------------------------------------------------- */}
+        {/* 3. REEL + STATUS LINE (takes all spare height)                  */}
+        {/* -------------------------------------------------------------- */}
 
-        <div
+        <section
+          aria-label="Current market value"
           className="
             relative
-            z-10
-            flex
-            shrink-0
-            justify-center
-          "
-        >
-          <BonusBadge
-            reached={
-              game.step === TOP_STEP
-            }
-          />
-        </div>
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Central game display                                             */}
-        {/* ---------------------------------------------------------------- */}
-
-        <div
-          className="
             flex
             min-h-0
             flex-1
             flex-col
             items-center
             justify-center
-            gap-3
-            py-2
+            px-3
+            pt-1
           "
         >
-          {/* -------------------------------------------------------------- */}
-          {/* Multiplier ladder                                              */}
-          {/* -------------------------------------------------------------- */}
-
-          <div className="w-full shrink-0">
-            <MultiplierLadder
-              step={game.step}
-            />
-          </div>
-
-          {/* -------------------------------------------------------------- */}
-          {/* Market number spinner                                          */}
-          {/* -------------------------------------------------------------- */}
-
-          <div
-            className="
-              flex
-              min-h-0
-              w-full
-              flex-1
-              items-center
-              justify-center
-            "
-          >
+          <div className="relative w-full">
             <MarketNumberSpinner
               value={game.price}
               decimals={decimals}
               tease={game.teasing}
+              direction={game.direction}
+              phase={game.phase}
             />
           </div>
-        </div>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* Direction controls                                               */}
-        {/* ---------------------------------------------------------------- */}
+          <div className="mt-1 w-full">
+            <StatusLine
+              phase={game.phase}
+              outcome={game.outcome}
+              netResult={game.netResult}
+              prediction={game.prediction}
+              isBroke={game.isBroke}
+            />
+          </div>
+        </section>
+
+        {/* -------------------------------------------------------------- */}
+        {/* 4. ROUND PANEL                                                  */}
+        {/* -------------------------------------------------------------- */}
 
         <div
           className="
-            grid
-            w-full
+            relative
+            z-10
+            mt-1
             shrink-0
-            grid-cols-2
-            gap-3
-            pt-2
+            px-3
+          "
+        >
+          <RoundInfoPanel
+            round={game.round}
+            spinsRemaining={game.spinsRemaining}
+            stake={game.stake}
+            canDecrease={game.canDecrease}
+            canIncrease={game.canIncrease}
+            onDecrease={game.decreaseStake}
+            onIncrease={game.increaseStake}
+          />
+        </div>
+
+        {/* -------------------------------------------------------------- */}
+        {/* 5. BONUS PANEL                                                  */}
+        {/* -------------------------------------------------------------- */}
+
+        <div
+          className="
+            relative
+            z-10
+            shrink-0
+            px-3
+            pt-1.5
+          "
+        >
+          <MultiplierLadder
+            round={game.round}
+            roundsPlayed={game.roundsPlayed}
+            stake={game.stake}
+          />
+        </div>
+
+        {/* -------------------------------------------------------------- */}
+        {/* 6. ACTION ROW                                                   */}
+        {/* -------------------------------------------------------------- */}
+
+        <div
+          role="group"
+          aria-label="Predict the market direction"
+          className="
+            relative
+            z-30
+            grid
+            shrink-0
+            grid-cols-[1fr_auto_1fr]
+            items-end
+            gap-2.5
+            px-3
+            pt-3
           "
         >
           <SwipePanel
@@ -196,6 +246,18 @@ function MarketFlux() {
             onSelect={game.spin}
           />
 
+          {/* Raised hub: lifted above the row and above its neighbours. */}
+          <div className="relative z-40 -mt-3">
+            <SpinButton
+              phase={game.phase}
+              prediction={game.prediction}
+              elapsed={game.elapsed}
+              outcome={game.outcome}
+              isBroke={game.isBroke}
+              onRestart={game.reset}
+            />
+          </div>
+
           <SwipePanel
             direction="down"
             disabled={!game.canSpin}
@@ -210,35 +272,7 @@ function MarketFlux() {
             onSelect={game.spin}
           />
         </div>
-      </section>
-
-      {/* ================================================================== */}
-      {/* Round / market status                                              */}
-      {/* ================================================================== */}
-
-      <PredictionBar
-        changePct={game.changePct}
-        round={game.round}
-        stake={game.stake}
-        phase={game.phase}
-        prediction={game.prediction}
-        elapsed={game.elapsed}
-        outcome={game.outcome}
-      />
-
-      {/* ================================================================== */}
-      {/* Stake control                                                       */}
-      {/* ================================================================== */}
-
-      <StakeControl
-        stake={game.stake}
-        canDecrease={game.canDecrease}
-        canIncrease={game.canIncrease}
-        onDecrease={game.decreaseStake}
-        onIncrease={game.increaseStake}
-        isBroke={game.isBroke}
-        onReset={game.reset}
-      />
+      </main>
     </div>
   )
 }
