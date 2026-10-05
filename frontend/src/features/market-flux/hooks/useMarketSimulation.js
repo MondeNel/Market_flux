@@ -6,58 +6,42 @@
  *
  * GAME MODEL
  * ---------------------------------------------------------------------------
- * Market Flux is played as a three-round market prediction sequence.
+ * Market Flux is a three-round market prediction game.
  *
- * 1. The selected market continuously produces a simulated price.
- * 2. The player clicks UP or DOWN.
- * 3. The click commits the prediction and locks the stake.
- * 4. The market continues moving for ROUND_MS.
- * 5. The final market value determines whether the prediction was correct.
- * 6. The market-number spinner reveals the final value.
- * 7. Changed digit positions receive the final market direction colour.
- * 8. The result is applied after the reveal:
- *      - correct call -> ladder advances + payout
- *      - incorrect call -> ladder resets
- *      - top ladder step -> bonus is awarded
- * 9. After Round 3, the three-round sequence starts again at Round 1.
+ * Each round has a fixed multiplier:
  *
- * THREE-ROUND GAME
- * ---------------------------------------------------------------------------
- * Round 1
- *   First prediction in the sequence.
+ *   Round 1 -> ×3
+ *   Round 2 -> ×6
+ *   Round 3 -> ×8
  *
- * Round 2
- *   Second prediction. A successful previous round keeps the ladder
- *   progression alive.
+ * The player selects UP or DOWN and spins the market-number display.
+ * The selected market then continues to simulate movement until the round
+ * finishes.
  *
- * Round 3
- *   Final prediction in the sequence. After settlement, the sequence
- *   returns to Round 1.
+ * The final market value determines whether the prediction was correct.
  *
- * IMPORTANT
- * ---------------------------------------------------------------------------
+ * Round settlement:
+ *
+ *   WIN  -> stake × round multiplier is added to the balance
+ *   LOSS -> stake × round multiplier is removed from the balance
+ *
+ * Example:
+ *
+ *   Stake: R10
+ *   Round 1: ×3
+ *
+ *   WIN  -> +R30
+ *   LOSS -> -R30
+ *
  * The spinner is intentionally not responsible for game rules.
- *
- * The UI can call:
- *
- *     spin('up')
- *     spin('down')
- *
- * The engine owns:
- *
- *     - market movement
- *     - three-round progression
- *     - stake
- *     - balance
- *     - ladder
- *     - result
- *     - near misses
- *     - bonus progression
- *
- * This keeps MarketFlux.jsx focused on composition rather than game logic.
+ * It only reveals the final market value.
  */
 
-import { useCallback, useEffect, useReducer } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+} from 'react'
 
 import {
   DEFAULT_MARKET_ID,
@@ -69,22 +53,44 @@ import {
 /* Game configuration                                                         */
 /* -------------------------------------------------------------------------- */
 
-export const MULTIPLIERS = [1, 2, 4, 6, 8, 10]
-
-export const TOP_STEP =
-  MULTIPLIERS.length - 1
+/**
+ * Multiplier attached to each round.
+ *
+ * The multiplier belongs to the round itself rather than a progressive
+ * success ladder.
+ */
+export const ROUND_CONFIG = [
+  {
+    round: 1,
+    multiplier: 3,
+  },
+  {
+    round: 2,
+    multiplier: 6,
+  },
+  {
+    round: 3,
+    multiplier: 8,
+  },
+]
 
 /**
- * Market Flux is played in three rounds per sequence.
+ * Number of rounds in one Market Flux game.
  */
-export const TOTAL_ROUNDS = 3
+export const TOTAL_ROUNDS =
+  ROUND_CONFIG.length
 
-export const BONUS_AMOUNT = 1000
+/**
+ * Optional completion bonus awarded after successfully completing all
+ * three rounds.
+ *
+ * Set to zero if the product design does not require a separate completion
+ * bonus yet.
+ */
+export const BONUS_AMOUNT = 0
 
 export const MIN_STAKE = 5
-
 export const MAX_STAKE = 500
-
 export const STAKE_STEP = 5
 
 /**
@@ -93,32 +99,27 @@ export const STAKE_STEP = 5
 export const ROUND_MS = 8000
 
 /**
- * Frequency at which the simulated market updates.
- *
- * A shorter interval makes the market feel alive while still keeping
- * the spinner readable.
+ * Frequency of simulated market updates.
  */
 export const TICK_MS = 1000
 
 /**
- * Time the final market value remains in the revealing phase.
- *
- * This should cover the longest normal MarketNumberSpinner animation.
+ * Time required for the market-number spinner to reveal the final value.
  */
 export const REVEAL_MS = 3400
 
 /**
- * Additional reveal time for near-miss animations.
+ * Additional reveal time for near-miss feedback.
  */
 export const NEAR_MISS_EXTRA_MS = 700
 
 /**
- * Time the result remains visible before the next round opens.
+ * Time the result remains visible before advancing.
  */
 export const RESULT_MS = 1800
 
 /**
- * A losing round inside this percentage is considered a photo finish.
+ * Losing movement inside this percentage is treated as a near miss.
  */
 export const NEAR_MISS_PCT = 0.03
 
@@ -126,103 +127,37 @@ const DEFAULT_MARKET =
   MARKETS_BY_ID[DEFAULT_MARKET_ID]
 
 const START_BALANCE = 124.5
-
 const START_STAKE = 10
 
 /* -------------------------------------------------------------------------- */
-/* Initial state                                                              */
-/* -------------------------------------------------------------------------- */
-
-const initialState = {
-  /**
-   * Selected market.
-   */
-  marketId: DEFAULT_MARKET_ID,
-
-  /**
-   * Current simulated market value.
-   */
-  price: DEFAULT_MARKET.startPrice,
-
-  /**
-   * Market value at the beginning of the current round.
-   */
-  startPrice: DEFAULT_MARKET.startPrice,
-
-  /**
-   * Latest market movement direction.
-   *
-   * 'up' | 'down'
-   */
-  direction: 'up',
-
-  /**
-   * Percentage movement from the round opening value.
-   */
-  changePct: 0,
-
-  /**
-   * Player balance.
-   */
-  balance: START_BALANCE,
-
-  /**
-   * Current stake.
-   */
-  stake: START_STAKE,
-
-  /**
-   * Current round within the three-round sequence.
-   *
-   * 1 -> 2 -> 3 -> 1
-   */
-  round: 1,
-
-  /**
-   * Current bonus ladder position.
-   */
-  step: 0,
-
-  /**
-   * Current game phase.
-   *
-   * 'idle'
-   * 'live'
-   * 'revealing'
-   * 'result'
-   */
-  phase: 'idle',
-
-  /**
-   * Direction committed by the player.
-   *
-   * null | 'up' | 'down'
-   */
-  prediction: null,
-
-  /**
-   * Milliseconds elapsed in the active round.
-   */
-  elapsed: 0,
-
-  /**
-   * Final result.
-   */
-  outcome: null,
-
-  /**
-   * Result calculated at the end of the market round but intentionally
-   * hidden until the spinner has finished revealing the final number.
-   */
-  pending: null,
-}
-
-/* -------------------------------------------------------------------------- */
-/* Stake helpers                                                              */
+/* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Returns the highest stake the player can currently afford.
+ * Returns the configuration for a specific round.
+ *
+ * @param {number} round
+ * @returns {{round: number, multiplier: number}}
+ */
+function getRoundConfig(round) {
+  return (
+    ROUND_CONFIG[round - 1] ??
+    ROUND_CONFIG[0]
+  )
+}
+
+/**
+ * Returns the multiplier for the current round.
+ *
+ * @param {number} round
+ * @returns {number}
+ */
+function getRoundMultiplier(round) {
+  return getRoundConfig(round).multiplier
+}
+
+/**
+ * Returns the maximum stake the player can afford.
  *
  * @param {number} balance
  * @returns {number}
@@ -258,7 +193,9 @@ function clampStake(
       stake,
       MIN_STAKE,
     ),
-    maxAffordableStake(balance),
+    maxAffordableStake(
+      balance,
+    ),
   )
 }
 
@@ -267,21 +204,24 @@ function clampStake(
 /* -------------------------------------------------------------------------- */
 
 /**
- * Calculates the result of a completed round.
+ * Calculates the financial result of a completed round.
  *
- * Nothing is applied to the visible game state yet. The returned object is
- * stored in `pending` while the spinner reveals the final market value.
+ * IMPORTANT:
+ * The stake is NOT deducted when the player commits a prediction.
+ * The round result is applied once, after the market reveal completes.
  *
  * @param {object} state
  * @param {boolean} won
  * @param {number} changePct
  * @returns {{
- *   step: number,
  *   balance: number,
+ *   roundResult: number,
  *   outcome: {
  *     won: boolean,
+ *     round: number,
+ *     multiplier: number,
  *     stake: number,
- *     payout: number,
+ *     amount: number,
  *     bonus: number,
  *     nearMiss: string|null,
  *     marginPct: number
@@ -293,85 +233,152 @@ function settleRound(
   won,
   changePct,
 ) {
-  if (!won) {
-    const marginPct =
-      Math.abs(changePct)
-
-    let nearMiss = null
-
-    /**
-     * Losing immediately below the bonus step.
-     */
-    if (
-      state.step ===
-      TOP_STEP - 1
-    ) {
-      nearMiss = 'bonus'
-    }
-
-    /**
-     * Extremely small market movement.
-     */
-    else if (
-      marginPct <
-      NEAR_MISS_PCT
-    ) {
-      nearMiss = 'photo'
-    }
-
-    return {
-      step: 0,
-
-      /**
-       * The stake was already deducted when the player clicked.
-       * Therefore a loss does not subtract it again.
-       */
-      balance: state.balance,
-
-      outcome: {
-        won: false,
-        stake: state.stake,
-        payout: 0,
-        bonus: 0,
-        nearMiss,
-        marginPct,
-      },
-    }
-  }
-
-  const step =
-    Math.min(
-      state.step + 1,
-      TOP_STEP,
+  const multiplier =
+    getRoundMultiplier(
+      state.round,
     )
 
-  const payout =
+  const amount =
     state.stake *
-    MULTIPLIERS[step]
+    multiplier
 
+  const marginPct =
+    Math.abs(changePct)
+
+  let nearMiss = null
+
+  if (
+    !won &&
+    marginPct <
+      NEAR_MISS_PCT
+  ) {
+    nearMiss = 'photo'
+  }
+
+  /**
+   * A separate completion bonus can be awarded after Round 3.
+   *
+   * We only award it when all three rounds have been successfully completed.
+   * The current implementation leaves BONUS_AMOUNT at zero until the UI/game
+   * design defines the actual bonus value.
+   */
   const bonus =
-    step === TOP_STEP
+    won &&
+    state.round === TOTAL_ROUNDS
       ? BONUS_AMOUNT
       : 0
 
-  return {
-    step,
+  const roundResult =
+    won
+      ? amount
+      : -amount
 
+  return {
     balance:
       state.balance +
-      payout +
+      roundResult +
       bonus,
 
+    roundResult,
+
     outcome: {
-      won: true,
-      stake: state.stake,
-      payout,
+      won,
+
+      round:
+        state.round,
+
+      multiplier,
+
+      stake:
+        state.stake,
+
+      amount:
+
+        roundResult,
+
       bonus,
-      nearMiss: null,
-      marginPct:
-        Math.abs(changePct),
+
+      nearMiss,
+
+      marginPct,
     },
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Initial state                                                              */
+/* -------------------------------------------------------------------------- */
+
+const initialState = {
+  marketId:
+    DEFAULT_MARKET_ID,
+
+  price:
+    DEFAULT_MARKET.startPrice,
+
+  startPrice:
+    DEFAULT_MARKET.startPrice,
+
+  direction:
+    'up',
+
+  changePct:
+    0,
+
+  balance:
+    START_BALANCE,
+
+  stake:
+    START_STAKE,
+
+  round:
+    1,
+
+  /**
+   * Current round multiplier.
+   *
+   * This is derived from `round`, but keeping it in the public state makes
+   * the UI very simple to consume.
+   */
+  multiplier:
+    getRoundMultiplier(1),
+
+  phase:
+    'idle',
+
+  prediction:
+    null,
+
+  elapsed:
+    0,
+
+  outcome:
+    null,
+
+  /**
+   * Result calculated when the round ends but hidden until the spinner
+   * finishes revealing the final market value.
+   */
+  pending:
+    null,
+
+  /**
+   * Financial result of the most recently completed round.
+   */
+  roundResult:
+    0,
+
+  /**
+   * Net result accumulated during the current three-round game.
+   */
+  netResult:
+    0,
+
+  /**
+   * Number of successfully completed rounds in the current game.
+   */
+  completedRounds:
+    0,
 }
 
 /* -------------------------------------------------------------------------- */
@@ -395,7 +402,8 @@ function reducer(
       if (
         state.phase ===
           'revealing' ||
-        state.phase === 'result'
+        state.phase ===
+          'result'
       ) {
         return state
       }
@@ -405,13 +413,6 @@ function reducer(
           state.marketId
         ]
 
-      /**
-       * `unit` is generated outside the reducer so the reducer remains pure.
-       *
-       * Expected range:
-       *
-       *     -1 ... 1
-       */
       const price =
         Math.max(
           0,
@@ -429,10 +430,11 @@ function reducer(
           : 'down'
 
       /**
-       * Outside an active round, the market simply updates.
+       * Before a prediction has been made, the market simply moves.
        */
       if (
-        state.phase !== 'live'
+        state.phase !==
+        'live'
       ) {
         return {
           ...state,
@@ -453,7 +455,7 @@ function reducer(
         ) * 100
 
       /**
-       * Round is still active.
+       * The round is still active.
        */
       if (
         elapsed <
@@ -473,7 +475,8 @@ function reducer(
       /* -------------------------------------------------------------------- */
 
       const won =
-        state.prediction === 'up'
+        state.prediction ===
+        'up'
           ? price >
             state.startPrice
           : price <
@@ -486,11 +489,13 @@ function reducer(
 
         direction,
 
-        elapsed: ROUND_MS,
+        elapsed:
+          ROUND_MS,
 
         changePct,
 
-        phase: 'revealing',
+        phase:
+          'revealing',
 
         pending:
           settleRound(
@@ -502,18 +507,19 @@ function reducer(
     }
 
     /* ---------------------------------------------------------------------- */
-    /* Direction / spin                                                       */
+    /* Player prediction / spin                                               */
     /* ---------------------------------------------------------------------- */
 
     case 'SPIN': {
       /**
-       * A button click is the player's actual prediction.
+       * A spin commits the player's market direction.
        *
-       * The spinner remains responsible for visually animating the number.
-       * The engine only records the direction and starts the round.
+       * The stake is NOT removed here.
+       * It remains untouched until the round is settled.
        */
       if (
-        state.phase !== 'idle' ||
+        state.phase !==
+          'idle' ||
         state.balance <
           state.stake
       ) {
@@ -521,8 +527,10 @@ function reducer(
       }
 
       if (
-        action.direction !== 'up' &&
-        action.direction !== 'down'
+        action.direction !==
+          'up' &&
+        action.direction !==
+          'down'
       ) {
         return state
       }
@@ -530,31 +538,29 @@ function reducer(
       return {
         ...state,
 
-        phase: 'live',
+        phase:
+          'live',
 
         prediction:
           action.direction,
 
-        /**
-         * Lock the stake immediately when the player commits.
-         */
-        balance:
-          state.balance -
-          state.stake,
-
-        /**
-         * The current market number becomes the round's baseline.
-         */
         startPrice:
           state.price,
 
-        elapsed: 0,
+        elapsed:
+          0,
 
-        changePct: 0,
+        changePct:
+          0,
 
-        outcome: null,
+        outcome:
+          null,
 
-        pending: null,
+        pending:
+          null,
+
+        roundResult:
+          0,
       }
     }
 
@@ -571,21 +577,36 @@ function reducer(
         return state
       }
 
+      const pending =
+        state.pending
+
       return {
         ...state,
 
-        phase: 'result',
-
-        step:
-          state.pending.step,
+        phase:
+          'result',
 
         balance:
-          state.pending.balance,
+          pending.balance,
 
         outcome:
-          state.pending.outcome,
+          pending.outcome,
 
-        pending: null,
+        roundResult:
+          pending.roundResult,
+
+        netResult:
+          state.netResult +
+          pending.roundResult +
+          pending.outcome.bonus,
+
+        completedRounds:
+          pending.outcome.won
+            ? state.completedRounds + 1
+            : state.completedRounds,
+
+        pending:
+          null,
       }
     }
 
@@ -594,57 +615,61 @@ function reducer(
     /* ---------------------------------------------------------------------- */
 
     case 'NEXT_ROUND': {
-      const completedBonus =
-        state.outcome?.bonus > 0
-
       const completedFinalRound =
         state.round ===
         TOTAL_ROUNDS
 
       /**
-       * A bonus completes the current ladder run.
+       * The three-round game ends after Round 3.
        *
-       * The three-round sequence also resets after Round 3.
+       * We then start a fresh three-round sequence.
        */
-      const resetSequence =
-        completedBonus ||
+      const nextRound =
         completedFinalRound
+          ? 1
+          : state.round + 1
 
       return {
         ...state,
 
-        phase: 'idle',
+        phase:
+          'idle',
 
-        prediction: null,
+        prediction:
+          null,
 
-        elapsed: 0,
+        elapsed:
+          0,
 
-        changePct: 0,
+        changePct:
+          0,
 
-        outcome: null,
+        outcome:
+          null,
 
-        /**
-         * Advance through:
-         *
-         *     1 -> 2 -> 3 -> 1
-         */
         round:
-          completedFinalRound
-            ? 1
-            : state.round + 1,
+          nextRound,
+
+        multiplier:
+          getRoundMultiplier(
+            nextRound,
+          ),
 
         /**
-         * Successful wins keep climbing during the three-round sequence.
-         *
-         * The ladder resets when:
-         *
-         * - the player reaches the top bonus, or
-         * - the three-round sequence is complete.
+         * Start a new financial sequence after Round 3.
          */
-        step:
-          resetSequence
+        netResult:
+          completedFinalRound
             ? 0
-            : state.step,
+            : state.netResult,
+
+        completedRounds:
+          completedFinalRound
+            ? 0
+            : state.completedRounds,
+
+        roundResult:
+          0,
 
         stake:
           clampStake(
@@ -660,7 +685,8 @@ function reducer(
 
     case 'CHANGE_STAKE': {
       if (
-        state.phase !== 'idle'
+        state.phase !==
+        'idle'
       ) {
         return state
       }
@@ -688,7 +714,8 @@ function reducer(
         ]
 
       if (
-        state.phase !== 'idle' ||
+        state.phase !==
+          'idle' ||
         !market ||
         market.id ===
           state.marketId
@@ -699,7 +726,8 @@ function reducer(
       return {
         ...state,
 
-        marketId: market.id,
+        marketId:
+          market.id,
 
         price:
           market.startPrice,
@@ -707,22 +735,35 @@ function reducer(
         startPrice:
           market.startPrice,
 
-        direction: 'up',
+        direction:
+          'up',
 
-        changePct: 0,
+        changePct:
+          0,
 
-        /**
-         * Selecting another market starts a fresh three-round sequence.
-         */
-        round: 1,
+        round:
+          1,
 
-        step: 0,
+        multiplier:
+          getRoundMultiplier(1),
 
-        prediction: null,
+        prediction:
+          null,
 
-        outcome: null,
+        outcome:
+          null,
 
-        pending: null,
+        pending:
+          null,
+
+        roundResult:
+          0,
+
+        netResult:
+          0,
+
+        completedRounds:
+          0,
       }
     }
 
@@ -757,10 +798,6 @@ function reducer(
 /**
  * Market Flux simulation hook.
  *
- * The hook owns all game state while the UI remains responsible for
- * rendering the market number, direction buttons, ladder, stake controls
- * and result feedback.
- *
  * @returns {{
  *   market: object,
  *   markets: object[],
@@ -772,11 +809,14 @@ function reducer(
  *   balance: number,
  *   stake: number,
  *   round: number,
- *   step: number,
+ *   multiplier: number,
  *   phase: string,
  *   prediction: 'up'|'down'|null,
  *   elapsed: number,
  *   outcome: object|null,
+ *   roundResult: number,
+ *   netResult: number,
+ *   completedRounds: number,
  *   canSelectMarket: boolean,
  *   teasing: boolean,
  *   isBroke: boolean,
@@ -809,7 +849,9 @@ export function useMarketSimulation() {
         dispatch({
           type: 'TICK',
           unit:
-            Math.random() * 2 - 1,
+            Math.random() *
+              2 -
+            1,
         })
       }, TICK_MS)
 
@@ -822,8 +864,10 @@ export function useMarketSimulation() {
   /* ------------------------------------------------------------------------ */
 
   const nearMiss =
-    state.pending?.outcome
-      ?.nearMiss ?? null
+    state.pending
+      ?.outcome
+      ?.nearMiss ??
+    null
 
   useEffect(() => {
     if (
@@ -844,7 +888,8 @@ export function useMarketSimulation() {
     const id =
       setTimeout(() => {
         dispatch({
-          type: 'REVEAL_DONE',
+          type:
+            'REVEAL_DONE',
         })
       }, wait)
 
@@ -861,7 +906,8 @@ export function useMarketSimulation() {
 
   useEffect(() => {
     if (
-      state.phase !== 'result'
+      state.phase !==
+      'result'
     ) {
       return undefined
     }
@@ -869,20 +915,23 @@ export function useMarketSimulation() {
     const id =
       setTimeout(() => {
         dispatch({
-          type: 'NEXT_ROUND',
+          type:
+            'NEXT_ROUND',
         })
       }, RESULT_MS)
 
     return () =>
       clearTimeout(id)
-  }, [state.phase])
+  }, [
+    state.phase,
+  ])
 
   /* ------------------------------------------------------------------------ */
   /* Public actions                                                           */
   /* ------------------------------------------------------------------------ */
 
   /**
-   * Commits an UP or DOWN prediction.
+   * Commits an UP or DOWN prediction and starts the market round.
    *
    * @param {'up'|'down'} direction
    */
@@ -890,7 +939,8 @@ export function useMarketSimulation() {
     useCallback(
       (direction) => {
         dispatch({
-          type: 'SPIN',
+          type:
+            'SPIN',
           direction,
         })
       },
@@ -904,8 +954,10 @@ export function useMarketSimulation() {
     useCallback(
       () => {
         dispatch({
-          type: 'CHANGE_STAKE',
-          delta: STAKE_STEP,
+          type:
+            'CHANGE_STAKE',
+          delta:
+            STAKE_STEP,
         })
       },
       [],
@@ -918,7 +970,8 @@ export function useMarketSimulation() {
     useCallback(
       () => {
         dispatch({
-          type: 'CHANGE_STAKE',
+          type:
+            'CHANGE_STAKE',
           delta:
             -STAKE_STEP,
         })
@@ -927,13 +980,14 @@ export function useMarketSimulation() {
     )
 
   /**
-   * Resets the current game state while keeping the selected market.
+   * Resets the current game state while preserving the selected market.
    */
   const reset =
     useCallback(
       () => {
         dispatch({
-          type: 'RESET',
+          type:
+            'RESET',
         })
       },
       [],
@@ -948,7 +1002,8 @@ export function useMarketSimulation() {
     useCallback(
       (marketId) => {
         dispatch({
-          type: 'SELECT_MARKET',
+          type:
+            'SELECT_MARKET',
           marketId,
         })
       },
@@ -960,7 +1015,8 @@ export function useMarketSimulation() {
   /* ------------------------------------------------------------------------ */
 
   const isIdle =
-    state.phase === 'idle'
+    state.phase ===
+    'idle'
 
   const isBroke =
     isIdle &&
@@ -994,7 +1050,8 @@ export function useMarketSimulation() {
         state.marketId
       ],
 
-    markets: MARKETS,
+    markets:
+      MARKETS,
 
     canSelectMarket:
       isIdle,
