@@ -1,90 +1,82 @@
-
 /**
  * @file src/features/market-flux/components/SwipePanel.jsx
  *
  * @description
- * Direction commitment buttons for Market Flux.
+ * Compact directional commitment control for Market Flux.
  *
- * The original component was a tall swipe gesture surface.
- * Market Flux now uses the market-number spinner as the primary interaction,
- * so these controls are intentionally reduced to compact UP / DOWN buttons
- * positioned beneath the play area.
+ * The market reel is the hero of the screen. These controls commit the
+ * player's directional prediction and sit either side of the SPIN button:
  *
- * Interaction:
- * - Click / tap -> commits the selected market direction.
- * - Enter / Space -> commits the selected direction.
+ *     UP   -> predict the market will rise
+ *     DOWN -> predict the market will fall
  *
- * The parent owns the game logic. This component only communicates:
+ * The parent owns all game logic. This component only communicates:
  *
  *     onSelect('up')
  *     onSelect('down')
  *
- * Visual direction:
- * - compact 3D liquid-glass control
+ * LAYOUT
+ * ---------------------------------------------------------------------------
+ * Arrow stacked above the label, centred. The stacked layout keeps the
+ * control narrow enough to share a row with the raised centre button on a
+ * 360px screen.
+ *
+ * STATES
+ * ---------------------------------------------------------------------------
+ * normal    full brightness, subtle direction-coloured edge light
+ * selected  the player's pick: pressed in, fully lit, strong glow
+ * dimmed    the other direction while a round is running
+ * disabled  locked with no pick (for example when the player is out of
+ *           funds): faded
+ *
+ * `disabled` is a BEHAVIOUR flag only. It does not fade a selected panel.
+ * During a round both panels are disabled, and the one the player picked
+ * must stay bright so the commitment is clear.
+ *
+ * Visual language:
  * - dark mechanical housing
- * - green UP / red DOWN energy
- * - directional chevron
- * - physical pressed state
- * - subtle neon edge lighting
- * - no swipe tracking
+ * - liquid-glass surface
+ * - green / red directional energy
+ * - pressed / selected state
+ * - restrained neon edge accents
+ * - no swipe tracking (tap only)
  */
 
+/**
+ * Direction-specific visual configuration.
+ */
 const PALETTES = {
   up: {
     label: 'UP',
-
     ariaLabel: 'Predict the market will go up',
 
     accent: '#31ff9a',
+    accentBright: '#a7ffda',
 
-    accentBright: '#9affd2',
-
-    glow: 'rgba(49,255,154,0.42)',
-
-    glowStrong: 'rgba(49,255,154,0.8)',
-
-    body:
-      'linear-gradient(145deg, rgba(12,55,45,0.92), rgba(2,15,12,0.96) 52%, rgba(5,43,31,0.92))',
-
-    icon:
-      'linear-gradient(180deg, #8affcf 0%, #19dc8b 100%)',
-
-    iconShadow:
-      '0 0 7px rgba(49,255,154,0.8), 0 0 18px rgba(20,220,130,0.35)',
+    glow: 'rgba(49,255,154,0.28)',
+    glowStrong: 'rgba(49,255,154,0.68)',
   },
 
   down: {
     label: 'DOWN',
-
     ariaLabel: 'Predict the market will go down',
 
-    accent: '#ff332f',
+    accent: '#ff403d',
+    accentBright: '#ffaaa5',
 
-    accentBright: '#ffaaa3',
-
-    glow: 'rgba(255,51,47,0.42)',
-
-    glowStrong: 'rgba(255,51,47,0.8)',
-
-    body:
-      'linear-gradient(145deg, rgba(74,8,13,0.92), rgba(17,1,3,0.96) 52%, rgba(66,7,12,0.92))',
-
-    icon:
-      'linear-gradient(180deg, #ff8c82 0%, #df1010 100%)',
-
-    iconShadow:
-      '0 0 7px rgba(255,60,50,0.8), 0 0 18px rgba(220,20,20,0.35)',
+    glow: 'rgba(255,64,61,0.28)',
+    glowStrong: 'rgba(255,64,61,0.68)',
   },
 }
 
 /**
- * Direction button.
+ * Direction commitment button.
  *
  * @param {object} props
  * @param {'up'|'down'} props.direction
- * @param {boolean} props.disabled
- * @param {boolean} props.selected
- * @param {boolean} props.dimmed
+ * @param {boolean} [props.disabled=false] Prevents interaction.
+ * @param {boolean} [props.selected=false] This is the player's pick.
+ * @param {boolean} [props.dimmed=false] The other direction is the pick.
  * @param {(direction: 'up'|'down') => void} props.onSelect
  * @returns {JSX.Element}
  */
@@ -96,7 +88,6 @@ function SwipePanel({
   onSelect,
 }) {
   const palette = PALETTES[direction]
-
   const isUp = direction === 'up'
 
   const handleClick = () => {
@@ -104,6 +95,17 @@ function SwipePanel({
 
     onSelect(direction)
   }
+
+  /*
+   * Opacity is driven by the pick, not by `disabled`, so the selected
+   * panel stays bright while the round is running.
+   */
+  const opacityClass =
+    dimmed
+      ? 'opacity-25'
+      : disabled && !selected
+        ? 'opacity-35'
+        : 'opacity-100'
 
   return (
     <button
@@ -116,53 +118,68 @@ function SwipePanel({
         group
         relative
         flex
-        h-[58px]
+        h-[50px]
         w-full
         min-w-0
+        flex-col
         items-center
         justify-center
+        gap-0.5
         overflow-hidden
-        rounded-[16px]
+        rounded-[14px]
         border
-        border-white/[0.08]
         outline-none
         select-none
         touch-manipulation
         transition-all
         duration-150
         ease-out
+        motion-reduce:transition-none
         focus-visible:ring-2
-        focus-visible:ring-white/50
+        focus-visible:ring-white/40
         active:translate-y-[2px]
         disabled:cursor-not-allowed
-        disabled:opacity-40
-        ${dimmed ? 'opacity-30' : ''}
+        ${opacityClass}
         ${selected ? 'translate-y-[1px]' : ''}
       `}
       style={{
-        background: palette.body,
+        /*
+         * Neutral black structural body.
+         *
+         * The direction colour comes from the lighting rather than
+         * turning the entire control green or red.
+         */
+        background: `
+          linear-gradient(
+            145deg,
+            rgba(24,28,33,0.96),
+            rgba(5,7,10,0.98) 52%,
+            rgba(13,16,20,0.96)
+          )
+        `,
+
+        borderColor: selected
+          ? `${palette.accent}88`
+          : 'rgba(255,255,255,0.075)',
 
         boxShadow: selected
           ? `
-              inset 0 1px 0 rgba(255,255,255,0.16),
-              inset 0 -8px 18px rgba(0,0,0,0.42),
-              0 0 10px ${palette.glowStrong},
-              0 0 24px ${palette.glow},
-              0 7px 14px rgba(0,0,0,0.65)
+              inset 0 1px 0 rgba(255,255,255,0.15),
+              inset 0 -8px 16px rgba(0,0,0,0.58),
+              inset 0 0 18px ${palette.glow},
+              0 0 9px ${palette.glowStrong},
+              0 0 22px ${palette.glow},
+              0 7px 14px rgba(0,0,0,0.72)
             `
           : `
-              inset 0 1px 0 rgba(255,255,255,0.13),
-              inset 0 -8px 18px rgba(0,0,0,0.45),
-              0 4px 10px rgba(0,0,0,0.58)
+              inset 0 1px 0 rgba(255,255,255,0.11),
+              inset 0 -8px 16px rgba(0,0,0,0.62),
+              0 5px 12px rgba(0,0,0,0.68)
             `,
-
-        borderColor: selected
-          ? `${palette.accent}99`
-          : 'rgba(255,255,255,0.08)',
       }}
     >
       {/* ---------------------------------------------------------------- */}
-      {/* Broken neon edge                                                 */}
+      {/* Structural outer edge                                            */}
       {/* ---------------------------------------------------------------- */}
 
       <span
@@ -171,18 +188,23 @@ function SwipePanel({
           pointer-events-none
           absolute
           inset-0
-          rounded-[16px]
+          rounded-[14px]
         "
         style={{
-          boxShadow: `
-            inset 0 1px 0 ${palette.accent}88,
-            inset 0 -1px 0 ${palette.accent}25
+          background: `
+            linear-gradient(
+              135deg,
+              rgba(255,255,255,0.11),
+              transparent 22%,
+              transparent 76%,
+              rgba(255,255,255,0.035)
+            )
           `,
         }}
       />
 
       {/* ---------------------------------------------------------------- */}
-      {/* Top glass reflection                                             */}
+      {/* Direction neon edge accents                                      */}
       {/* ---------------------------------------------------------------- */}
 
       <span
@@ -190,19 +212,73 @@ function SwipePanel({
         className="
           pointer-events-none
           absolute
-          inset-x-3
+          left-[9%]
+          right-[9%]
+          top-0
+          h-px
+        "
+        style={{
+          background: `
+            linear-gradient(
+              90deg,
+              transparent,
+              ${palette.accent}88 22%,
+              ${palette.accent}44 78%,
+              transparent
+            )
+          `,
+          opacity: selected ? 1 : 0.5,
+          boxShadow: selected
+            ? `0 0 8px ${palette.glowStrong}`
+            : undefined,
+        }}
+      />
+
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          bottom-0
+          left-[16%]
+          right-[16%]
+          h-px
+        "
+        style={{
+          background: `
+            linear-gradient(
+              90deg,
+              transparent,
+              ${palette.accent}55,
+              transparent
+            )
+          `,
+          opacity: selected ? 0.9 : 0.35,
+        }}
+      />
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Glass reflection                                                 */}
+      {/* ---------------------------------------------------------------- */}
+
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-x-4
           top-[1px]
-          h-[18px]
+          h-[12px]
           rounded-full
           bg-gradient-to-b
-          from-white/[0.13]
+          from-white/[0.12]
           to-transparent
           opacity-70
         "
       />
 
       {/* ---------------------------------------------------------------- */}
-      {/* Atmospheric glow                                                 */}
+      {/* Direction atmosphere                                             */}
       {/* ---------------------------------------------------------------- */}
 
       <span
@@ -212,81 +288,65 @@ function SwipePanel({
           absolute
           left-1/2
           top-1/2
-          h-14
-          w-24
+          h-10
+          w-20
           -translate-x-1/2
           -translate-y-1/2
           rounded-full
-          blur-2xl
+          blur-xl
           transition-opacity
           duration-150
-          group-hover:opacity-100
-          group-active:opacity-100
         "
         style={{
           background: palette.glow,
-          opacity: selected ? 0.8 : 0.3,
+          opacity: selected ? 0.9 : 0.2,
         }}
       />
 
       {/* ---------------------------------------------------------------- */}
-      {/* Direction icon                                                    */}
+      {/* Direction arrow                                                  */}
       {/* ---------------------------------------------------------------- */}
 
-      <span
+      <svg
         aria-hidden="true"
+        viewBox="0 0 24 24"
         className="
           relative
           z-10
-          flex
-          h-9
-          w-9
-          shrink-0
-          items-center
-          justify-center
-          rounded-[10px]
-          border
-          border-white/10
-          bg-black/30
+          h-5
+          w-5
           transition-transform
           duration-150
           group-hover:scale-105
           group-active:scale-95
         "
         style={{
-          boxShadow: selected
-            ? `0 0 12px ${palette.glow}`
-            : 'inset 0 2px 5px rgba(0,0,0,0.45)',
+          filter: `
+            drop-shadow(0 0 4px ${palette.glowStrong})
+            drop-shadow(0 0 8px ${palette.glow})
+          `,
         }}
       >
-        <svg
-          viewBox="0 0 24 24"
-          className="h-5 w-5"
-          style={{
-            filter: palette.iconShadow,
-          }}
-        >
-          {isUp ? (
-            <path
-              d="M12 19V5M6 11l6-6 6 6"
-              fill="none"
-              stroke={palette.accentBright}
-              strokeWidth="2.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ) : (
-            <path
-              d="M12 5v14M6 13l6 6 6-6"
-              fill="none"
-              stroke={palette.accentBright}
-              strokeWidth="2.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-        </svg>
-      </span>
+        {isUp ? (
+          <path
+            d="M12 19V5M6 11l6-6 6 6"
+            fill="none"
+            stroke={palette.accentBright}
+            strokeWidth="2.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : (
+          <path
+            d="M12 5v14M6 13l6 6 6-6"
+            fill="none"
+            stroke={palette.accentBright}
+            strokeWidth="2.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+      </svg>
 
       {/* ---------------------------------------------------------------- */}
       {/* Label                                                             */}
@@ -296,75 +356,24 @@ function SwipePanel({
         className="
           relative
           z-10
-          ml-3
-          flex
-          flex-col
-          items-start
-          justify-center
+          text-[14px]
+          font-black
+          uppercase
           leading-none
+          tracking-[0.14em]
+          text-white
         "
+        style={{
+          textShadow: selected
+            ? `0 0 9px ${palette.glowStrong}`
+            : '0 1px 2px rgba(0,0,0,0.8)',
+        }}
       >
-        <span
-          className="
-            text-[10px]
-            font-semibold
-            uppercase
-            tracking-[0.22em]
-            text-white/50
-          "
-        >
-          Predict
-        </span>
-
-        <span
-          className="
-            mt-1
-            text-[15px]
-            font-black
-            uppercase
-            tracking-[0.12em]
-            text-white
-          "
-          style={{
-            textShadow: selected
-              ? `0 0 9px ${palette.glowStrong}`
-              : undefined,
-          }}
-        >
-          {palette.label}
-        </span>
+        {palette.label}
       </span>
 
       {/* ---------------------------------------------------------------- */}
-      {/* Direction accent                                                 */}
-      {/* ---------------------------------------------------------------- */}
-
-      <span
-        aria-hidden="true"
-        className="
-          absolute
-          right-3
-          top-1/2
-          h-7
-          w-px
-          -translate-y-1/2
-        "
-        style={{
-          background: `linear-gradient(
-            to bottom,
-            transparent,
-            ${palette.accent},
-            transparent
-          )`,
-          opacity: selected ? 0.9 : 0.35,
-          boxShadow: selected
-            ? `0 0 8px ${palette.glowStrong}`
-            : undefined,
-        }}
-      />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Bottom mechanical highlight                                      */}
+      {/* Bottom mechanical reflection                                     */}
       {/* ---------------------------------------------------------------- */}
 
       <span
@@ -372,18 +381,20 @@ function SwipePanel({
         className="
           pointer-events-none
           absolute
-          bottom-0
-          left-[12%]
-          right-[12%]
+          bottom-[3px]
+          left-[18%]
+          right-[18%]
           h-px
         "
         style={{
-          background: `linear-gradient(
-            90deg,
-            transparent,
-            ${palette.accent}66,
-            transparent
-          )`,
+          background: `
+            linear-gradient(
+              90deg,
+              transparent,
+              rgba(255,255,255,0.12),
+              transparent
+            )
+          `,
         }}
       />
     </button>
