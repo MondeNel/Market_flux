@@ -23,7 +23,8 @@
  * Round settlement:
  *
  *   WIN  -> stake × round multiplier is added to the balance
- *   LOSS -> stake × round multiplier is removed from the balance
+ *   LOSS -> stake × round multiplier is removed from the balance,
+ *           capped at the balance the player has left
  *
  * Example:
  *
@@ -31,7 +32,18 @@
  *   Round 1: ×3
  *
  *   WIN  -> +R30
- *   LOSS -> -R30
+ *   LOSS -> -R30 (or less, if the balance is below R30)
+ *
+ * PROGRESS MODEL
+ * ---------------------------------------------------------------------------
+ * Two different counters describe progress through a three-round sequence:
+ *
+ *   completedRounds  rounds the player WON (legacy; wins only)
+ *   roundsPlayed     rounds finished, win or lose
+ *   spinsRemaining   rounds the player can still start
+ *
+ * UI that shows progress ("Round 2 / 3", spin dots, bonus-table ticks)
+ * should use roundsPlayed and spinsRemaining.
  *
  * The spinner is intentionally not responsible for game rules.
  * It only reveals the final market value.
@@ -210,6 +222,9 @@ function clampStake(
  * The stake is NOT deducted when the player commits a prediction.
  * The round result is applied once, after the market reveal completes.
  *
+ * A loss is capped at the player's remaining balance so the balance can
+ * never go negative.
+ *
  * @param {object} state
  * @param {boolean} won
  * @param {number} changePct
@@ -268,10 +283,19 @@ function settleRound(
       ? BONUS_AMOUNT
       : 0
 
+  /**
+   * A loss can never take more than the player has left.
+   */
+  const loss =
+    Math.min(
+      amount,
+      state.balance,
+    )
+
   const roundResult =
     won
       ? amount
-      : -amount
+      : -loss
 
   return {
     balance:
@@ -293,7 +317,6 @@ function settleRound(
         state.stake,
 
       amount:
-
         roundResult,
 
       bonus,
@@ -375,7 +398,9 @@ const initialState = {
     0,
 
   /**
-   * Number of successfully completed rounds in the current game.
+   * Number of rounds WON in the current three-round game.
+   *
+   * Wins only. For "rounds finished" use the derived `roundsPlayed`.
    */
   completedRounds:
     0,
@@ -817,6 +842,8 @@ function reducer(
  *   roundResult: number,
  *   netResult: number,
  *   completedRounds: number,
+ *   roundsPlayed: number,
+ *   spinsRemaining: number,
  *   canSelectMarket: boolean,
  *   teasing: boolean,
  *   isBroke: boolean,
@@ -1042,6 +1069,33 @@ export function useMarketSimulation() {
         state.balance,
       )
 
+  /**
+   * Rounds finished in the current three-round sequence, win or lose.
+   *
+   * `completedRounds` only counts wins, so it cannot drive progress UI:
+   * after a loss in Round 1 it would still read 0 while Round 2 is current.
+   *
+   * The current round counts as played once its result is on screen.
+   */
+  const roundsPlayed =
+    state.phase ===
+    'result'
+      ? state.round
+      : state.round - 1
+
+  /**
+   * Rounds the player can still start, for the "Spins Remaining" dots.
+   *
+   * The current round counts as used as soon as a prediction is committed:
+   *
+   *   idle,  round 1 -> 3        live,  round 1 -> 2
+   *   idle,  round 3 -> 1        live,  round 3 -> 0
+   */
+  const spinsRemaining =
+    TOTAL_ROUNDS -
+    state.round +
+    (isIdle ? 1 : 0)
+
   return {
     ...state,
 
@@ -1068,6 +1122,10 @@ export function useMarketSimulation() {
     canDecrease,
 
     canIncrease,
+
+    roundsPlayed,
+
+    spinsRemaining,
 
     spin,
 
