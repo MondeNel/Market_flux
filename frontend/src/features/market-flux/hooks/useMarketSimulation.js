@@ -14,9 +14,8 @@
  *   Round 2 -> ×6
  *   Round 3 -> ×8
  *
- * The player selects UP or DOWN and spins the market-number display.
- * The selected market then continues to simulate movement until the round
- * finishes.
+ * The player selects UP or DOWN and the round starts. The selected market
+ * continues to simulate movement until the round finishes.
  *
  * The final market value determines whether the prediction was correct.
  *
@@ -34,18 +33,30 @@
  *   WIN  -> +R30
  *   LOSS -> -R30 (or less, if the balance is below R30)
  *
+ * COMPLETION BONUS
+ * ---------------------------------------------------------------------------
+ * Winning all three rounds of a run pays an extra
+ *
+ *   stake × BONUS_MULTIPLIER (×10)
+ *
+ * on top of the Round 3 win. The stake used is the Round 3 stake.
+ *
+ * Example (R10 stake every round, all three won):
+ *
+ *   +R30  +R60  +R80  +R100 bonus  =  +R270
+ *
  * PROGRESS MODEL
  * ---------------------------------------------------------------------------
  * Two different counters describe progress through a three-round sequence:
  *
- *   completedRounds  rounds the player WON (legacy; wins only)
+ *   completedRounds  rounds the player WON (wins only)
  *   roundsPlayed     rounds finished, win or lose
  *   spinsRemaining   rounds the player can still start
  *
  * UI that shows progress ("Round 2 / 3", spin dots, bonus-table ticks)
  * should use roundsPlayed and spinsRemaining.
  *
- * The spinner is intentionally not responsible for game rules.
+ * The reel is intentionally not responsible for game rules.
  * It only reveals the final market value.
  */
 
@@ -93,13 +104,12 @@ export const TOTAL_ROUNDS =
   ROUND_CONFIG.length
 
 /**
- * Optional completion bonus awarded after successfully completing all
- * three rounds.
+ * Completion bonus multiplier.
  *
- * Set to zero if the product design does not require a separate completion
- * bonus yet.
+ * Winning all three rounds of a run pays stake × BONUS_MULTIPLIER on top
+ * of the Round 3 win. Set to zero to disable the bonus.
  */
-export const BONUS_AMOUNT = 0
+export const BONUS_MULTIPLIER = 10
 
 export const MIN_STAKE = 5
 export const MAX_STAKE = 500
@@ -116,7 +126,7 @@ export const ROUND_MS = 8000
 export const TICK_MS = 1000
 
 /**
- * Time required for the market-number spinner to reveal the final value.
+ * Time required for the reel to reveal the final value.
  */
 export const REVEAL_MS = 3400
 
@@ -138,7 +148,7 @@ export const NEAR_MISS_PCT = 0.03
 const DEFAULT_MARKET =
   MARKETS_BY_ID[DEFAULT_MARKET_ID]
 
-const START_BALANCE = 124.5
+const START_BALANCE = 100
 const START_STAKE = 10
 
 /* -------------------------------------------------------------------------- */
@@ -225,6 +235,9 @@ function clampStake(
  * A loss is capped at the player's remaining balance so the balance can
  * never go negative.
  *
+ * The completion bonus is awarded when the player wins Round 3 having
+ * already won every earlier round of the run.
+ *
  * @param {object} state
  * @param {boolean} won
  * @param {number} changePct
@@ -271,16 +284,22 @@ function settleRound(
   }
 
   /**
-   * A separate completion bonus can be awarded after Round 3.
+   * Completion bonus.
    *
-   * We only award it when all three rounds have been successfully completed.
-   * The current implementation leaves BONUS_AMOUNT at zero until the UI/game
-   * design defines the actual bonus value.
+   * `completedRounds` counts wins so far in this run and has not yet been
+   * updated for the round being settled, so a clean sweep means two wins
+   * going into a winning Round 3.
    */
-  const bonus =
+  const wonAllRounds =
     won &&
-    state.round === TOTAL_ROUNDS
-      ? BONUS_AMOUNT
+    state.round === TOTAL_ROUNDS &&
+    state.completedRounds ===
+      TOTAL_ROUNDS - 1
+
+  const bonus =
+    wonAllRounds
+      ? state.stake *
+        BONUS_MULTIPLIER
       : 0
 
   /**
@@ -379,7 +398,7 @@ const initialState = {
     null,
 
   /**
-   * Result calculated when the round ends but hidden until the spinner
+   * Result calculated when the round ends but hidden until the reel
    * finishes revealing the final market value.
    */
   pending:
@@ -392,7 +411,8 @@ const initialState = {
     0,
 
   /**
-   * Net result accumulated during the current three-round game.
+   * Net result accumulated during the current three-round game,
+   * including any completion bonus.
    */
   netResult:
     0,
@@ -532,12 +552,12 @@ function reducer(
     }
 
     /* ---------------------------------------------------------------------- */
-    /* Player prediction / spin                                               */
+    /* Player prediction                                                      */
     /* ---------------------------------------------------------------------- */
 
     case 'SPIN': {
       /**
-       * A spin commits the player's market direction.
+       * Committing UP or DOWN starts the round.
        *
        * The stake is NOT removed here.
        * It remains untouched until the round is settled.
@@ -887,7 +907,7 @@ export function useMarketSimulation() {
   }, [])
 
   /* ------------------------------------------------------------------------ */
-  /* Spinner reveal                                                           */
+  /* Reel reveal                                                              */
   /* ------------------------------------------------------------------------ */
 
   const nearMiss =
