@@ -2,21 +2,25 @@
  * @file src/features/market-flux/components/MarketNumberSpinner.jsx
  *
  * @description
- * Mechanical market-number display for Market Flux.
+ * Mechanical result reel for Market Flux.
  *
- * The reel shows the selected market price. It is the hero element of the
- * game screen.
+ * The reel is the hero of the game screen. It does not show the live
+ * price (the small live row beneath it does that). It shows the RESULT of
+ * the round.
  *
- * BEHAVIOUR
+ * LIFECYCLE
  * ---------------------------------------------------------------------------
- * Idle / live:
- *   The reel shows the live price. Digits update instantly on each market
- *   tick (no spin), so the display is steady and readable.
+ * idle / live   The reel rests on zeros, in the same shape as the price
+ *               (for example 00000,00).
  *
- * Revealing:
- *   When the round ends, every digit spins once and brakes onto the final
- *   price, left to right. A near-miss tease holds the last digit one step
- *   short before it creeps home.
+ * revealing     When the round ends, every digit rolls up from zero and
+ *               brakes onto the final price, left to right. A near-miss
+ *               tease holds the last digit one step short before it
+ *               creeps home.
+ *
+ * result        The final price is held on the reel.
+ *
+ * next round    The reel snaps back to zeros.
  *
  * LAYERS
  * ---------------------------------------------------------------------------
@@ -28,22 +32,24 @@
  * While the reveal spin runs:
  *   all digits remain neutral.
  *
- * Otherwise:
- *   only digits that changed since the previous price are coloured:
+ * Once the reel has settled:
+ *   digits that differ from the round-open price are coloured by the
+ *   direction the market moved:
  *
- *   current > previous -> up / green
- *   current < previous -> down / red
+ *     final > open  ->  up / green
+ *     final < open  ->  down / red
  *
- * A large jump (for example switching market) is treated as a new
- * baseline and is not coloured.
+ * Price format is a decimal comma with no thousands grouping, for example
+ * 86426,21, so every character is a digit or the single comma.
  */
 
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
+
+import { formatPrice } from '../utils/formatMoney'
 
 import ReelFrame from './ReelFrame'
 
@@ -62,12 +68,6 @@ const BRAKE_MS = 260
 const SETTLE_MS = 150
 
 const OVERSHOOT = 0.22
-
-/**
- * Price changes larger than this are treated as a new baseline rather
- * than a market movement (for example after switching market).
- */
-const JUMP_THRESHOLD = 0.05
 
 /* -------------------------------------------------------------------------- */
 /* Reel data                                                                  */
@@ -126,7 +126,7 @@ function isDigit(char) {
 
 /**
  * Digit size scales down as the price gets longer so seven digits
- * (for example 86,538.74) still fit on a 360px screen.
+ * (for example 86426,21) still fit on a 360px screen.
  *
  * @param {number} digitCount
  * @returns {string}
@@ -144,92 +144,10 @@ function getFontSize(digitCount) {
 }
 
 /**
- * Converts a formatted market value into a numeric value.
- *
- * @param {string} value
- * @returns {number}
- */
-function parseMarketValue(value) {
-  return Number(value.replace(/,/g, ''))
-}
-
-/**
- * Whether the change between two prices is a baseline reset rather than
- * normal market movement.
- *
- * @param {string} current
- * @param {string} previous
- * @returns {boolean}
- */
-function isMarketJump(
-  current,
-  previous,
-) {
-  const currentValue =
-    parseMarketValue(current)
-
-  const previousValue =
-    parseMarketValue(previous)
-
-  if (
-    !Number.isFinite(currentValue) ||
-    !Number.isFinite(previousValue) ||
-    previousValue === 0
-  ) {
-    return true
-  }
-
-  return (
-    Math.abs(
-      currentValue / previousValue - 1,
-    ) > JUMP_THRESHOLD
-  )
-}
-
-/**
- * Determines complete-market direction.
- *
- * @param {string} current
- * @param {string|null} previous
- * @returns {'up'|'down'|'idle'}
- */
-function getMarketDirection(
-  current,
-  previous,
-) {
-  if (!previous) {
-    return 'idle'
-  }
-
-  const currentValue =
-    parseMarketValue(current)
-
-  const previousValue =
-    parseMarketValue(previous)
-
-  if (
-    !Number.isFinite(currentValue) ||
-    !Number.isFinite(previousValue)
-  ) {
-    return 'idle'
-  }
-
-  if (currentValue > previousValue) {
-    return 'up'
-  }
-
-  if (currentValue < previousValue) {
-    return 'down'
-  }
-
-  return 'idle'
-}
-
-/**
  * Finds changed numeric positions.
  *
- * Digits are compared from the right so that formatting characters such as
- * commas and decimal points do not affect alignment.
+ * Digits are compared from the right so that the decimal comma does not
+ * affect alignment.
  *
  * @param {string} current
  * @param {string} previous
@@ -277,59 +195,39 @@ function getChangedDigits(
 
 /**
  * @param {object} props
- * @param {number} props.value
+ * @param {number} props.value Final market price. Only shown once the round
+ *   is revealing; before that the reel shows zeros in the same shape.
  * @param {number} props.decimals
- * @param {'up'|'down'|'idle'} [props.direction]
  * @param {'idle'|'live'|'revealing'|'result'} [props.phase]
- * @param {boolean} [props.tease]
+ * @param {boolean} [props.tease] Near-miss reveal.
+ * @param {number} [props.startPrice] Price when the round opened, used to
+ *   colour the revealed digits.
  * @returns {JSX.Element}
  */
 function MarketNumberSpinner({
   value,
   decimals = 2,
-  direction,
   phase = 'idle',
   tease = false,
+  startPrice,
 }) {
-  const formatted = useMemo(
-    () =>
-      value.toLocaleString(
-        'en-US',
-        {
-          minimumFractionDigits: decimals,
-          maximumFractionDigits: decimals,
-        },
-      ),
-    [value, decimals],
-  )
+  const formatted =
+    formatPrice(
+      value,
+      decimals,
+    )
 
   /**
-   * Track the previous price.
-   *
-   * State is adjusted during render (rather than in an effect) so the
-   * digits never paint one frame with a stale comparison.
+   * The reel rests on zeros until the round is revealed.
    */
-  const [track, setTrack] =
-    useState({
-      current: formatted,
-      previous: null,
-    })
+  const resting =
+    phase === 'idle' ||
+    phase === 'live'
 
-  if (track.current !== formatted) {
-    setTrack({
-      current: formatted,
-      previous:
-        isMarketJump(
-          formatted,
-          track.current,
-        )
-          ? null
-          : track.current,
-    })
-  }
-
-  const previousFormatted =
-    track.previous
+  const shown =
+    resting
+      ? formatted.replace(/\d/g, '0')
+      : formatted
 
   /**
    * Track reveal spins.
@@ -340,7 +238,7 @@ function MarketNumberSpinner({
    *
    * Incrementing during render means the reels receive the new id in the
    * same commit as the final price, so the result is never flashed before
-   * the spin starts.
+   * the spin starts, and the spin always starts from zero.
    */
   const [trackedPhase, setTrackedPhase] =
     useState(phase)
@@ -364,30 +262,31 @@ function MarketNumberSpinner({
     settledId !== revealId
 
   /**
-   * Movement is derived from the actual market values. The engine's
-   * direction is only a fallback.
+   * Result colouring: which digits moved, and which way.
    */
-  const resultDirection =
-    getMarketDirection(
-      formatted,
-      previousFormatted,
-    )
-
-  const effectiveDirection =
-    resultDirection !== 'idle'
-      ? resultDirection
-      : direction ?? 'idle'
+  const direction =
+    startPrice === undefined
+      ? 'idle'
+      : value > startPrice
+        ? 'up'
+        : value < startPrice
+          ? 'down'
+          : 'idle'
 
   const changedDigits =
-    previousFormatted
+    !resting &&
+    startPrice !== undefined
       ? getChangedDigits(
           formatted,
-          previousFormatted,
+          formatPrice(
+            startPrice,
+            decimals,
+          ),
         )
       : []
 
   const chars =
-    formatted.split('')
+    shown.split('')
 
   const numericDigitCount =
     chars.filter(isDigit).length
@@ -400,7 +299,11 @@ function MarketNumberSpinner({
   return (
     <div
       role="img"
-      aria-label={`Market value ${formatted}`}
+      aria-label={
+        resting
+          ? 'Result reel, waiting for the round to finish'
+          : `Round result ${formatted}`
+      }
       className="
         relative
         w-full
@@ -450,7 +353,7 @@ function MarketNumberSpinner({
           const tone =
             !isSpinning &&
             changedDigits[digitIndex]
-              ? effectiveDirection
+              ? direction
               : 'idle'
 
           return (
@@ -580,7 +483,7 @@ function DigitReel({
       revealId
 
     /**
-     * Snap: ordinary price updates, first paint, and reduced motion.
+     * Snap: reset to zeros, first paint, and reduced motion.
      */
     if (
       !spinRequested ||
@@ -602,7 +505,7 @@ function DigitReel({
     }
 
     /**
-     * Reveal spin.
+     * Reveal spin, rolling up from the resting position (zero).
      */
     const start =
       positionRef.current
