@@ -11,20 +11,28 @@
  * SCREEN LAYERS (top to bottom)
  * ---------------------------------------------------------------------------
  *   1. Header          MarketFluxHeader (balance, rank, followers)
- *   2. Asset row       MarketTicker (selector, price, change, sparkline)
- *   3. Reel            MarketNumberSpinner, the only flexible-height section,
- *                      with StatusLine directly beneath it
+ *   2. Market selector MarketTicker (centred dropdown)
+ *   3. Reel            MarketNumberSpinner, the only flexible-height section.
+ *                      Beneath it: LivePriceRow (the live market) and
+ *                      StatusLine
  *   4. Round panel     RoundInfoPanel (round, spins left, stake)
  *   5. Bonus panel     MultiplierLadder (payout table)
  *   6. Action row      SwipePanel UP, SpinButton, SwipePanel DOWN
  *
  * The persistent navigation sits below all of this in AppShell.
  *
+ * THE TWO NUMBER DISPLAYS
+ * ---------------------------------------------------------------------------
+ *   Reel           the ROUND RESULT. Rests on zeros, rolls up to the final
+ *                  price at the reveal, resets for the next round.
+ *   LivePriceRow   the MARKET. Ticks every second and flicks when the
+ *                  direction changes.
+ *
  * STACKING
  * ---------------------------------------------------------------------------
- *   z-50  asset row     the market dropdown must open over everything below
+ *   z-50  market selector   the dropdown must open over everything below
  *   z-30  action row
- *   z-40  spin hub      raised above its neighbours, overlapping the bonus panel
+ *   z-40  spin hub          raised above its neighbours, overlapping the bonus panel
  *   z-10  info panels
  *
  * LAYOUT OWNERSHIP
@@ -37,7 +45,7 @@
  * 1. The selected market continuously produces simulated market data.
  * 2. The player selects UP or DOWN.
  * 3. The prediction starts the current round.
- * 4. MarketNumberSpinner reveals the resulting market value.
+ * 4. The reel rolls up from zero and reveals the resulting market value.
  * 5. The engine determines whether the prediction was correct.
  * 6. The round multiplier is applied:
  *
@@ -46,12 +54,14 @@
  *      Round 3 -> ×8
  *
  * 7. The resulting amount is added to or removed from the balance.
- * 8. After Round 3, a new three-round sequence begins.
+ * 8. After Round 3, a new three-round sequence begins. Winning all three
+ *    rounds also pays a completion bonus of stake × 10.
  */
 
 import MarketFluxHeader from './components/MarketFluxHeader'
 import MarketTicker from './components/MarketTicker'
 import MarketNumberSpinner from './components/MarketNumberSpinner'
+import LivePriceRow from './components/LivePriceRow'
 import StatusLine from './components/StatusLine'
 import RoundInfoPanel from './components/RoundInfoPanel'
 import MultiplierLadder from './components/MultiplierLadder'
@@ -92,7 +102,7 @@ function MarketFlux() {
       />
 
       {/* ================================================================== */}
-      {/* 2. ASSET ROW                                                       */}
+      {/* 2. MARKET SELECTOR                                                 */}
       {/* ================================================================== */}
 
       <div
@@ -107,12 +117,8 @@ function MarketFlux() {
         <MarketTicker
           market={game.market}
           markets={game.markets}
-          price={game.price}
           canSelect={game.canSelectMarket}
           onSelect={game.selectMarket}
-          phase={game.phase}
-          changePct={game.changePct}
-          startPrice={game.startPrice}
         />
       </div>
 
@@ -131,11 +137,11 @@ function MarketFlux() {
         "
       >
         {/* -------------------------------------------------------------- */}
-        {/* 3. REEL + STATUS LINE (takes all spare height)                  */}
+        {/* 3. REEL, LIVE ROW AND STATUS (takes all spare height)           */}
         {/* -------------------------------------------------------------- */}
 
         <section
-          aria-label="Current market value"
+          aria-label="Market"
           className="
             relative
             flex
@@ -153,12 +159,22 @@ function MarketFlux() {
               value={game.price}
               decimals={decimals}
               tease={game.teasing}
-              direction={game.direction}
               phase={game.phase}
+              startPrice={game.startPrice}
             />
           </div>
 
           <div className="mt-1 w-full">
+            <LivePriceRow
+              price={game.price}
+              decimals={decimals}
+              direction={game.direction}
+              marketName={game.market.name}
+              phase={game.phase}
+            />
+          </div>
+
+          <div className="mt-1.5 w-full">
             <StatusLine
               phase={game.phase}
               outcome={game.outcome}
