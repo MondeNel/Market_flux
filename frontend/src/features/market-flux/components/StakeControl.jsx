@@ -2,30 +2,50 @@
  * @file src/features/market-flux/components/StakeControl.jsx
  *
  * @description
- * Bottom stake instrument for Market Flux.
+ * Stake control for the middle of the action row.
  *
- * DESIGN
+ *            Stake
+ *        [ − ]  R10  [ + ]
+ *
+ * It sits between the UP and DOWN panels, as in the layout sketch, and
+ * replaces the old SPIN hub. The − and + buttons are disabled while a
+ * round is running (the hook's canDecrease / canIncrease are false then).
+ *
+ * OUT OF FUNDS
  * ---------------------------------------------------------------------------
- * - Floating mechanical HUD rather than a conventional card.
- * - No heavy backdrop or standard rounded container.
- * - Compact 3D minus / stake / plus control.
- * - Broken neon-blue structural rails.
- * - Metallic/glass depth and internal reflections.
- * - Risk/reward tagline remains secondary.
- * - When the player is out of funds, the tagline becomes a restart action.
+ * When the player cannot afford another round, the stake has no meaning, so
+ * the same slot becomes the restart action:
+ *
+ *          Out of funds
+ *         [ ↺ Restart ]
+ *
+ * SIZE
+ * ---------------------------------------------------------------------------
+ * About 50px tall, matching the UP and DOWN panels, and about 120px wide.
+ * The buttons are 36px with an invisible extra hit area, so they measure
+ * 44px to the touch.
+ *
+ * LAYOUT OWNERSHIP
+ * ---------------------------------------------------------------------------
+ * No landmark and no padding. It fills the middle (auto) column of the
+ * action row grid in MarketFlux.jsx.
+ *
+ * Presentational only.
  */
 
 import { Minus, Plus, RotateCcw } from 'lucide-react'
 
+import { formatMoney } from '../utils/formatMoney'
+
 /**
  * @param {object} props
- * @param {number} props.stake
+ * @param {number} props.stake Current stake.
  * @param {boolean} props.canDecrease
  * @param {boolean} props.canIncrease
  * @param {() => void} props.onDecrease
  * @param {() => void} props.onIncrease
- * @param {boolean} props.isBroke
- * @param {() => void} props.onReset
+ * @param {boolean} [props.isBroke=false] The player cannot afford a round.
+ * @param {() => void} [props.onRestart] Restarts the demo when broke.
  * @returns {JSX.Element}
  */
 function StakeControl({
@@ -34,286 +54,158 @@ function StakeControl({
   canIncrease,
   onDecrease,
   onIncrease,
-  isBroke,
-  onReset,
+  isBroke = false,
+  onRestart,
 }) {
-  return (
-    <section
-      aria-label="Stake"
-      className="relative mx-3 mt-2"
-    >
-      {/* ---------------------------------------------------------------- */}
-      {/* Atmospheric glow                                                 */}
-      {/* ---------------------------------------------------------------- */}
-
+  if (isBroke) {
+    return (
       <div
-        aria-hidden="true"
+        role="group"
+        aria-label="Out of funds"
         className="
-          pointer-events-none
-          absolute
-          inset-x-8
-          top-1/2
-          h-16
-          -translate-y-1/2
-          rounded-full
-          bg-cyan-400/[0.035]
-          blur-2xl
-        "
-      />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Top structural rail                                              */}
-      {/* ---------------------------------------------------------------- */}
-
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-x-2
-          top-0
           flex
+          min-w-[120px]
+          flex-col
           items-center
+          justify-center
+          gap-1
         "
       >
-        <span className="h-px w-10 bg-cyan-400/55" />
-        <span className="ml-2 h-px flex-1 bg-cyan-400/15" />
-        <span className="mx-2 h-[2px] w-1 rounded-full bg-cyan-300/70" />
-        <span className="h-px flex-1 bg-cyan-400/15" />
-        <span className="ml-2 h-px w-10 bg-cyan-400/55" />
-      </div>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Main instrument                                                   */}
-      {/* ---------------------------------------------------------------- */}
-
-      <div className="relative flex items-center justify-center py-3">
-        <div
-          aria-hidden="true"
+        <span
           className="
-            pointer-events-none
-            absolute
-            inset-x-5
-            top-1/2
-            h-[52px]
-            -translate-y-1/2
-            rounded-[18px]
-            bg-black/35
-            shadow-[inset_0_1px_0_rgba(255,255,255,0.05),inset_0_-8px_18px_rgba(0,0,0,0.35)]
+            text-[10px]
+            font-semibold
+            leading-none
+            text-amber-300
           "
-        />
+        >
+          Out of funds
+        </span>
 
-        <div className="relative flex w-full max-w-[330px] items-center justify-between">
-          <StakeButton
-            label="Decrease stake"
-            disabled={!canDecrease}
-            onClick={onDecrease}
-            icon={Minus}
+        <button
+          type="button"
+          onClick={onRestart}
+          className="
+            group
+            inline-flex
+            h-9
+            items-center
+            gap-1.5
+            rounded-[12px]
+            border
+            border-cyan-300/40
+            bg-cyan-400/10
+            px-3
+            text-[12px]
+            font-black
+            uppercase
+            tracking-[0.1em]
+            text-cyan-100
+            shadow-[0_4px_8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.1)]
+            outline-offset-2
+            transition-transform
+            focus-visible:outline
+            focus-visible:outline-2
+            focus-visible:outline-cyan-300
+            active:scale-95
+          "
+        >
+          <RotateCcw
+            aria-hidden="true"
+            className="
+              h-3.5
+              w-3.5
+              transition-transform
+              group-hover:-rotate-[35deg]
+            "
+            strokeWidth={2.75}
           />
 
-          <StakeReadout stake={stake} />
-
-          <StakeButton
-            label="Increase stake"
-            disabled={!canIncrease}
-            onClick={onIncrease}
-            icon={Plus}
-          />
-        </div>
+          Restart
+        </button>
       </div>
+    )
+  }
 
-      {/* ---------------------------------------------------------------- */}
-      {/* Bottom structural rail                                            */}
-      {/* ---------------------------------------------------------------- */}
-
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-x-2
-          bottom-0
-          flex
-          items-center
-        "
-      >
-        <span className="h-px w-14 bg-cyan-400/45" />
-        <span className="ml-2 h-px flex-1 bg-cyan-400/10" />
-        <span className="mx-2 h-px w-8 bg-cyan-400/25" />
-        <span className="mr-2 h-px flex-1 bg-cyan-400/10" />
-        <span className="h-px w-14 bg-cyan-400/45" />
-      </div>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Risk / restart status                                             */}
-      {/* ---------------------------------------------------------------- */}
-
-      <div className="flex items-center justify-center gap-2 pt-1">
-        <Rail />
-
-        {isBroke ? (
-          <button
-            type="button"
-            onClick={onReset}
-            className="
-              group
-              inline-flex
-              items-center
-              gap-1.5
-              rounded-full
-              px-3
-              py-1.5
-              text-[8px]
-              font-bold
-              uppercase
-              tracking-[0.18em]
-              text-cyan-200
-              outline-offset-2
-              transition-[background-color,transform]
-              hover:bg-cyan-400/[0.06]
-              active:scale-95
-              focus-visible:outline
-              focus-visible:outline-2
-              focus-visible:outline-cyan-300
-            "
-          >
-            <RotateCcw
-              aria-hidden="true"
-              className="
-                h-3
-                w-3
-                transition-transform
-                group-hover:rotate-[-35deg]
-              "
-              strokeWidth={2.5}
-            />
-
-            Restart Demo
-          </button>
-        ) : (
-          <p
-            className="
-              text-[8px]
-              font-semibold
-              uppercase
-              tracking-[0.2em]
-              text-slate-500
-            "
-          >
-            Higher Risk
-            <span className="mx-2 text-cyan-400/80">•</span>
-            Bigger Rewards
-          </p>
-        )}
-
-        <Rail flip />
-      </div>
-    </section>
-  )
-}
-
-/**
- * Central stake amount readout.
- */
-function StakeReadout({ stake }) {
   return (
     <div
+      role="group"
+      aria-label="Stake"
       className="
-        relative
-        min-w-[116px]
-        text-center
+        flex
+        min-w-[120px]
+        flex-col
+        items-center
+        justify-center
+        gap-1
       "
     >
-      {/* mechanical side ticks */}
       <span
-        aria-hidden="true"
         className="
-          absolute
-          left-0
-          top-1/2
-          h-5
-          w-px
-          -translate-y-1/2
-          bg-gradient-to-b
-          from-transparent
-          via-cyan-400/45
-          to-transparent
-        "
-      />
-
-      <span
-        aria-hidden="true"
-        className="
-          absolute
-          right-0
-          top-1/2
-          h-5
-          w-px
-          -translate-y-1/2
-          bg-gradient-to-b
-          from-transparent
-          via-cyan-400/45
-          to-transparent
-        "
-      />
-
-      <p
-        className="
-          text-[7px]
-          font-bold
-          uppercase
-          tracking-[0.3em]
-          text-slate-500
+          text-[10px]
+          font-semibold
+          leading-none
+          text-white/50
         "
       >
         Stake
-      </p>
+      </span>
 
-      <div className="mt-1 flex items-baseline justify-center gap-1">
-        <span
-          className="
-            text-[11px]
-            font-bold
-            uppercase
-            tracking-[0.08em]
-            text-cyan-400/70
-          "
-        >
-          R
-        </span>
+      <div className="flex items-center gap-1.5">
+        <StakeButton
+          label="Decrease stake"
+          icon={Minus}
+          disabled={!canDecrease}
+          onClick={onDecrease}
+        />
 
         <span
+          aria-live="polite"
           className="
-            text-[24px]
+            min-w-[44px]
+            text-center
+            text-[18px]
             font-black
             leading-none
             tabular-nums
-            tracking-[-0.04em]
             text-white
-            [text-shadow:0_1px_0_rgba(255,255,255,0.12),0_0_14px_rgba(0,174,255,0.12)]
+            [text-shadow:0_0_12px_rgba(0,174,255,0.25)]
           "
         >
-          {stake}
+          {formatMoney(stake)}
         </span>
-      </div>
 
-      {/* tiny instrumentation marker */}
-      <div
-        aria-hidden="true"
-        className="mx-auto mt-1 flex w-12 items-center justify-center gap-1"
-      >
-        <span className="h-[2px] w-1 rounded-full bg-cyan-400/70" />
-        <span className="h-px flex-1 bg-cyan-400/20" />
-        <span className="h-[2px] w-1 rounded-full bg-cyan-400/70" />
+        <StakeButton
+          label="Increase stake"
+          icon={Plus}
+          disabled={!canIncrease}
+          onClick={onIncrease}
+        />
       </div>
     </div>
   )
 }
 
+/* -------------------------------------------------------------------------- */
+/* Stake button                                                               */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Mechanical plus/minus control.
+ * Mechanical plus / minus button.
+ *
+ * @param {object} props
+ * @param {string} props.label Accessible name.
+ * @param {React.ElementType} props.icon
+ * @param {boolean} props.disabled
+ * @param {() => void} props.onClick
+ * @returns {JSX.Element}
  */
-function StakeButton({ label, disabled, onClick, icon: Icon }) {
+function StakeButton({
+  label,
+  icon: Icon,
+  disabled,
+  onClick,
+}) {
   return (
     <button
       type="button"
@@ -324,19 +216,22 @@ function StakeButton({ label, disabled, onClick, icon: Icon }) {
         group
         relative
         grid
-        h-11
-        w-11
+        h-9
+        w-9
+        shrink-0
         place-items-center
-        rounded-[14px]
+        rounded-[12px]
         border
         border-cyan-400/30
         bg-black/55
         text-cyan-200
-        shadow-[0_8px_16px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-5px_10px_rgba(0,0,0,0.4)]
+        shadow-[0_5px_10px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-4px_8px_rgba(0,0,0,0.4)]
         outline-offset-2
-        transition-[transform,opacity,border-color,box-shadow]
+        transition-[transform,opacity,border-color]
+        after:absolute
+        after:-inset-1
+        after:content-['']
         hover:border-cyan-300/55
-        hover:shadow-[0_8px_18px_rgba(0,0,0,0.5),0_0_14px_rgba(0,174,255,0.12),inset_0_1px_0_rgba(255,255,255,0.1)]
         focus-visible:outline
         focus-visible:outline-2
         focus-visible:outline-cyan-300
@@ -361,53 +256,18 @@ function StakeButton({ label, disabled, onClick, icon: Icon }) {
         "
       />
 
-      {/* broken mechanical accent */}
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          bottom-[-1px]
-          left-3
-          h-px
-          w-3
-          bg-cyan-400/70
-        "
-      />
-
       <Icon
         aria-hidden="true"
         className="
           relative
-          h-[18px]
-          w-[18px]
+          h-4
+          w-4
           transition-transform
           group-hover:scale-110
         "
         strokeWidth={2.75}
       />
     </button>
-  )
-}
-
-/**
- * Small cyan HUD separator.
- */
-function Rail({ flip = false }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`
-        flex
-        w-8
-        items-center
-        gap-1
-        ${flip ? 'flex-row-reverse' : ''}
-      `}
-    >
-      <span className="h-px flex-1 bg-cyan-400/30" />
-      <span className="h-[2px] w-1 rounded-full bg-cyan-300/60" />
-    </span>
   )
 }
 
