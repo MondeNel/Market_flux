@@ -2,19 +2,26 @@
  * @file src/features/market-flux/components/StatusLine.jsx
  *
  * @description
- * One-line status under the reel.
+ * One-line status under the reel and the live price row.
  *
- * Idle, it is the instruction line from the reference. During a round it
- * becomes the round status, and after settlement it reports the result:
+ * Idle, it is the instruction line. During a round it becomes the round
+ * status with a countdown, and after settlement it reports the result:
  *
- *   idle        Tap UP or DOWN to spin the numbers
- *   live        Round live · UP
- *   revealing   Revealing price
- *   result      Correct +R30 · ×3   Net +R30
- *   broke       Out of funds · restart to play again
+ *   idle        Pick UP or DOWN to start the round
+ *   live        Round live · UP · 5s
+ *   revealing   Revealing the price
+ *   result      Correct +R30 · ×3
+ *               Correct +R80 · Bonus +R100   Net +R270
+ *   broke       Restart to play again
  *
- * The net for the current three-round run is only shown from the second
- * round on, when it differs from the round result.
+ * The net for the current three-round run is shown from the second round
+ * on, when it differs from the round result. A completion bonus is
+ * reported on its own, and the net always includes it.
+ *
+ * SCREEN READERS
+ * ---------------------------------------------------------------------------
+ * Only the message is a live region. The countdown seconds are kept out of
+ * it, otherwise the line would be read aloud every second.
  *
  * Presentational only.
  */
@@ -25,6 +32,7 @@ import {
   Pointer,
 } from 'lucide-react'
 
+import { ROUND_MS } from '../hooks/useMarketSimulation'
 import { formatMoney } from '../utils/formatMoney'
 
 const TONES = {
@@ -37,7 +45,7 @@ const TONES = {
 
 /**
  * @param {object} props
- * @returns {{text: string, tone: string, icon: boolean, net: object|null}}
+ * @returns {{text: string, tone: string, icon: boolean, net: object|null, countdown: boolean}}
  */
 function getMessage({
   phase,
@@ -50,6 +58,9 @@ function getMessage({
     phase === 'result' &&
     outcome
   ) {
+    const hasBonus =
+      outcome.bonus > 0
+
     const net =
       netResult !== outcome.amount
         ? {
@@ -63,20 +74,27 @@ function getMessage({
           }
         : null
 
+    const result =
+      `${outcome.won ? 'Correct' : 'Missed'} ${formatMoney(outcome.amount, { sign: true })}`
+
     return {
-      text: `${outcome.won ? 'Correct' : 'Missed'} ${formatMoney(outcome.amount, { sign: true })} · ×${outcome.multiplier}`,
+      text: hasBonus
+        ? `${result} · Bonus ${formatMoney(outcome.bonus, { sign: true })}`
+        : `${result} · ×${outcome.multiplier}`,
       tone: outcome.won ? TONES.win : TONES.loss,
       icon: false,
       net,
+      countdown: false,
     }
   }
 
   if (phase === 'revealing') {
     return {
-      text: 'Revealing price',
+      text: 'Revealing the price',
       tone: TONES.live,
       icon: false,
       net: null,
+      countdown: false,
     }
   }
 
@@ -88,23 +106,26 @@ function getMessage({
       tone: TONES.live,
       icon: false,
       net: null,
+      countdown: true,
     }
   }
 
   if (isBroke) {
     return {
-      text: 'Out of funds · restart to play again',
+      text: 'Restart to play again',
       tone: TONES.warn,
       icon: false,
       net: null,
+      countdown: false,
     }
   }
 
   return {
-    text: 'Tap UP or DOWN to spin the numbers',
+    text: 'Pick UP or DOWN to start the round',
     tone: TONES.hint,
     icon: true,
     net: null,
+    countdown: false,
   }
 }
 
@@ -115,6 +136,8 @@ function getMessage({
  * @param {number} props.netResult Net for the current three-round run.
  * @param {'up'|'down'|null} props.prediction
  * @param {boolean} props.isBroke
+ * @param {number} [props.elapsed] Milliseconds elapsed in the live round.
+ *   When omitted, no countdown is shown.
  * @returns {JSX.Element}
  */
 function StatusLine({
@@ -123,6 +146,7 @@ function StatusLine({
   netResult,
   prediction,
   isBroke,
+  elapsed,
 }) {
   const message = getMessage({
     phase,
@@ -132,9 +156,19 @@ function StatusLine({
     isBroke,
   })
 
+  const seconds =
+    message.countdown &&
+    elapsed !== undefined
+      ? Math.max(
+          0,
+          Math.ceil(
+            (ROUND_MS - elapsed) / 1000,
+          ),
+        )
+      : null
+
   return (
     <p
-      aria-live="polite"
       className={`
         flex
         min-h-[22px]
@@ -160,9 +194,25 @@ function StatusLine({
         />
       )}
 
-      <span className="truncate">
+      <span
+        aria-live="polite"
+        className="truncate"
+      >
         {message.text}
       </span>
+
+      {seconds !== null && (
+        <span
+          aria-hidden="true"
+          className="
+            shrink-0
+            tabular-nums
+            text-cyan-100
+          "
+        >
+          · {seconds}s
+        </span>
+      )}
 
       {message.net && (
         <span
