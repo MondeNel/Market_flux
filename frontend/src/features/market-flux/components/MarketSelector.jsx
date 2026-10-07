@@ -2,24 +2,54 @@
  * @file src/features/market-flux/components/MarketSelector.jsx
  *
  * @description
- * Market selector for the Market Flux HUD.
+ * Physical liquid-glass market selector for Market Flux.
  *
  * DESIGN
  * ---------------------------------------------------------------------------
- * - Floating mechanical selector rather than a conventional pill.
- * - Liquid-glass surface with dark physical depth.
- * - Neon-blue structural accents.
- * - Market coin remains the primary visual identifier.
- * - Dropdown behaves like a compact instrument tray.
- * - Keyboard navigation and accessibility are preserved.
- * - Disabled while a round is running.
+ * The selector is treated as an instrument mounted into the game machine.
+ *
+ * - Transparent liquid-glass body
+ * - Deep black mechanical depth
+ * - Cyan structural illumination
+ * - Metallic/specular highlights
+ * - Physical coin badge
+ * - Recessed selector control
+ * - Compact instrument tray dropdown
+ *
+ * FUNCTION
+ * ---------------------------------------------------------------------------
+ * - Supports keyboard navigation
+ * - Supports Escape to close
+ * - Closes when clicking outside
+ * - Locks while a round is active
+ * - Returns focus after keyboard selection
+ *
+ * API
+ * ---------------------------------------------------------------------------
+ * markets   -> available markets
+ * selected  -> currently selected market
+ * onSelect  -> market selection callback
+ * disabled  -> prevents changing markets during a round
  */
 
-import { useEffect, useId, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
+
+import {
+  Check,
+  ChevronDown,
+} from 'lucide-react'
+
+/* -------------------------------------------------------------------------- */
+/* Coin badge                                                                 */
+/* -------------------------------------------------------------------------- */
 
 /**
- * Round coin badge, tinted per market.
+ * Physical market coin.
  *
  * @param {object} props
  * @param {object} props.market
@@ -29,50 +59,77 @@ export function CoinBadge({ market }) {
   return (
     <span
       aria-hidden="true"
-      style={{
-        backgroundColor: market.color,
-        color: market.glyphColor,
-      }}
       className="
         relative
         grid
-        h-6
-        w-6
+        h-[25px]
+        w-[25px]
         shrink-0
         place-items-center
         overflow-hidden
         rounded-full
-        text-[13px]
-        font-black
-        shadow-[0_2px_5px_rgba(0,0,0,0.45),0_0_9px_rgba(255,255,255,0.12)]
+        border
+        border-white/20
+        shadow-[0_3px_7px_rgba(0,0,0,0.55),inset_0_1px_2px_rgba(255,255,255,0.45),0_0_8px_rgba(255,255,255,0.08)]
       "
+      style={{
+        backgroundColor: market.color,
+        color: market.glyphColor,
+      }}
     >
-      {/* Glass reflection */}
+      {/* Upper glass reflection */}
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          inset-x-1
-          top-0.5
+          inset-x-[4px]
+          top-[2px]
           h-[35%]
           rounded-full
-          bg-white/25
+          bg-white/35
           blur-[1px]
         "
       />
 
-      <span className="relative">{market.glyph}</span>
+      {/* Inner metallic highlight */}
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-[2px]
+          rounded-full
+          border
+          border-white/10
+        "
+      />
+
+      <span
+        className="
+          relative
+          z-10
+          text-[12px]
+          font-black
+          leading-none
+        "
+      >
+        {market.glyph}
+      </span>
     </span>
   )
 }
 
+/* -------------------------------------------------------------------------- */
+/* Market selector                                                            */
+/* -------------------------------------------------------------------------- */
+
 /**
  * @param {object} props
- * @param {object[]} props.markets Available markets.
- * @param {object} props.selected Currently selected market.
+ * @param {object[]} props.markets
+ * @param {object} props.selected
  * @param {(marketId: string) => void} props.onSelect
- * @param {boolean} props.disabled Locks the picker while a round is running.
+ * @param {boolean} props.disabled
  * @returns {JSX.Element}
  */
 function MarketSelector({
@@ -89,57 +146,83 @@ function MarketSelector({
 
   const menuId = useId()
 
-  const isOpen = open && !disabled
+  const isOpen =
+    open &&
+    !disabled
 
-  /*
-   * A locked selector should never remain visually open.
-   */
+  /* ------------------------------------------------------------------------ */
+  /* Lock selector during a round                                             */
+  /* ------------------------------------------------------------------------ */
+
   useEffect(() => {
     if (disabled) {
       setOpen(false)
     }
   }, [disabled])
 
-  /*
-   * Outside click + Escape handling.
-   */
+  /* ------------------------------------------------------------------------ */
+  /* Outside click + Escape                                                   */
+  /* ------------------------------------------------------------------------ */
+
   useEffect(() => {
-    if (!isOpen) return undefined
+    if (!isOpen) {
+      return undefined
+    }
 
     const handlePointerDown = (event) => {
-      if (!rootRef.current?.contains(event.target)) {
+      if (
+        !rootRef.current?.contains(
+          event.target,
+        )
+      ) {
         setOpen(false)
       }
     }
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-        triggerRef.current?.focus()
+      if (event.key !== 'Escape') {
+        return
       }
+
+      setOpen(false)
+      triggerRef.current?.focus()
     }
 
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener(
+      'pointerdown',
+      handlePointerDown,
+    )
 
-    /*
-     * Land on the current market when the menu opens.
-     */
+    document.addEventListener(
+      'keydown',
+      handleKeyDown,
+    )
+
     requestAnimationFrame(() => {
       menuRef.current
-        ?.querySelector('[aria-selected="true"]')
+        ?.querySelector(
+          '[aria-selected="true"]',
+        )
         ?.focus()
     })
 
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener(
+        'pointerdown',
+        handlePointerDown,
+      )
+
+      document.removeEventListener(
+        'keydown',
+        handleKeyDown,
+      )
     }
   }, [isOpen])
 
-  /*
-   * Arrow-key navigation.
-   */
+  /* ------------------------------------------------------------------------ */
+  /* Keyboard navigation                                                      */
+  /* ------------------------------------------------------------------------ */
+
   const handleMenuKeyDown = (event) => {
     if (
       event.key !== 'ArrowDown' &&
@@ -151,30 +234,50 @@ function MarketSelector({
     event.preventDefault()
 
     const options = [
-      ...menuRef.current.querySelectorAll('[role="option"]'),
+      ...(
+        menuRef.current
+          ?.querySelectorAll(
+            '[role="option"]',
+          ) ?? []
+      ),
     ]
 
-    if (!options.length) return
+    if (!options.length) {
+      return
+    }
 
-    const current = options.indexOf(document.activeElement)
-    const step = event.key === 'ArrowDown' ? 1 : -1
+    const current =
+      options.indexOf(
+        document.activeElement,
+      )
 
-    options[
-      (current + step + options.length) % options.length
-    ]?.focus()
+    const step =
+      event.key === 'ArrowDown'
+        ? 1
+        : -1
+
+    const next =
+      (
+        current +
+        step +
+        options.length
+      ) %
+      options.length
+
+    options[next]?.focus()
   }
 
-  /*
-   * Select a market.
-   */
-  const choose = (marketId, event) => {
+  /* ------------------------------------------------------------------------ */
+  /* Select market                                                            */
+  /* ------------------------------------------------------------------------ */
+
+  const choose = (
+    marketId,
+    event,
+  ) => {
     onSelect(marketId)
     setOpen(false)
 
-    /*
-     * Keyboard selection returns focus to the trigger.
-     * Pointer selection does not leave an unnecessary focus ring.
-     */
     if (event.detail === 0) {
       triggerRef.current?.focus()
     }
@@ -183,11 +286,15 @@ function MarketSelector({
   return (
     <div
       ref={rootRef}
-      className="relative"
+      className="
+        relative
+        mx-auto
+        w-fit
+      "
     >
-      {/* ================================================================ */}
-      {/* Trigger                                                          */}
-      {/* ================================================================ */}
+      {/* ================================================================== */}
+      {/* SELECTOR BODY                                                       */}
+      {/* ================================================================== */}
 
       <button
         ref={triggerRef}
@@ -195,108 +302,230 @@ function MarketSelector({
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
-        aria-label={`Market: ${selected.name} ${selected.pair}`}
-        onClick={() => setOpen((value) => !value)}
+        aria-controls={
+          isOpen
+            ? menuId
+            : undefined
+        }
+        aria-label={
+          `Market: ${selected.name} ${selected.pair}`
+        }
+        onClick={() =>
+          setOpen(
+            (value) => !value,
+          )
+        }
         className="
           group
           relative
           flex
-          min-w-[126px]
+          h-[43px]
+          min-w-[151px]
           items-center
-          gap-1.5
+          gap-2
           overflow-hidden
-          rounded-[13px]
+          rounded-[14px]
           border
-          border-cyan-400/30
-          bg-black/45
-          py-1
-          pl-1
+          border-cyan-300/20
+          bg-black/35
+          px-1.5
           pr-2
           text-left
-          shadow-[0_6px_14px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-5px_10px_rgba(0,0,0,0.35)]
+          shadow-[0_7px_15px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-7px_12px_rgba(0,0,0,0.35)]
+          backdrop-blur-md
           outline-offset-2
-          transition-[border-color,box-shadow,transform,opacity]
-          hover:border-cyan-300/55
-          hover:shadow-[0_7px_16px_rgba(0,0,0,0.45),0_0_12px_rgba(0,190,255,0.12),inset_0_1px_0_rgba(255,255,255,0.1)]
+          transition-[border-color,box-shadow,transform,background-color]
+          hover:border-cyan-300/40
+          hover:bg-black/40
+          hover:shadow-[0_9px_18px_rgba(0,0,0,0.52),0_0_14px_rgba(0,191,255,0.10),inset_0_1px_0_rgba(255,255,255,0.14)]
           focus-visible:outline
           focus-visible:outline-2
           focus-visible:outline-cyan-300
-          active:scale-[0.985]
+          active:translate-y-px
+          active:shadow-[0_4px_9px_rgba(0,0,0,0.50),inset_0_2px_5px_rgba(0,0,0,0.40)]
           disabled:cursor-not-allowed
           disabled:opacity-45
         "
       >
-        {/* Top glass reflection */}
+        {/* -------------------------------------------------------------- */}
+        {/* Glass top reflection                                           */}
+        {/* -------------------------------------------------------------- */}
+
         <span
           aria-hidden="true"
           className="
             pointer-events-none
             absolute
-            inset-x-7
+            left-[15%]
+            right-[15%]
             top-0
             h-px
-            bg-white/15
+            bg-gradient-to-r
+            from-transparent
+            via-white/25
+            to-transparent
           "
         />
 
-        {/* Left mechanical accent */}
+        {/* -------------------------------------------------------------- */}
+        {/* Internal blue atmosphere                                       */}
+        {/* -------------------------------------------------------------- */}
+
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            left-[20%]
+            top-1/2
+            h-8
+            w-16
+            -translate-y-1/2
+            rounded-full
+            bg-cyan-400/[0.035]
+            blur-xl
+          "
+        />
+
+        {/* -------------------------------------------------------------- */}
+        {/* Mechanical left rail                                           */}
+        {/* -------------------------------------------------------------- */}
+
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            bottom-[7px]
+            left-2
+            h-px
+            w-7
+            bg-cyan-400/65
+            shadow-[0_0_5px_rgba(0,191,255,0.45)]
+          "
+        />
+
+        {/* -------------------------------------------------------------- */}
+        {/* Coin                                                            */}
+        {/* -------------------------------------------------------------- */}
+
+        <CoinBadge
+          market={selected}
+        />
+
+        {/* -------------------------------------------------------------- */}
+        {/* Market information                                              */}
+        {/* -------------------------------------------------------------- */}
+
+        <span
+          className="
+            relative
+            min-w-0
+            flex-1
+            leading-none
+          "
+        >
+          <span
+            className="
+              block
+              truncate
+              text-[10px]
+              font-black
+              uppercase
+              tracking-[0.04em]
+              text-white
+            "
+          >
+            {selected.name}
+          </span>
+
+          <span
+            className="
+              mt-1
+              block
+              truncate
+              text-[7px]
+              font-bold
+              tracking-[0.12em]
+              text-white/40
+            "
+          >
+            {selected.pair}
+          </span>
+        </span>
+
+        {/* -------------------------------------------------------------- */}
+        {/* Mechanical selector button                                     */}
+        {/* -------------------------------------------------------------- */}
+
+        <span
+          aria-hidden="true"
+          className="
+            relative
+            grid
+            h-6
+            w-6
+            shrink-0
+            place-items-center
+            rounded-[8px]
+            border
+            border-cyan-300/15
+            bg-black/25
+            shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),inset_0_-2px_4px_rgba(0,0,0,0.35)]
+          "
+        >
+          <span
+            className="
+              absolute
+              left-1/2
+              top-0
+              h-px
+              w-2
+              -translate-x-1/2
+              bg-white/20
+            "
+          />
+
+          <ChevronDown
+            className={`
+              relative
+              h-3
+              w-3
+              text-cyan-300
+              transition-transform
+              duration-200
+              motion-reduce:transition-none
+              ${
+                isOpen
+                  ? 'rotate-180'
+                  : ''
+              }
+            `}
+            strokeWidth={2.5}
+          />
+        </span>
+
+        {/* -------------------------------------------------------------- */}
+        {/* Bottom cyan structural edge                                    */}
+        {/* -------------------------------------------------------------- */}
+
         <span
           aria-hidden="true"
           className="
             pointer-events-none
             absolute
             bottom-0
-            left-3
+            left-[30%]
+            right-[30%]
             h-px
-            w-5
-            bg-cyan-400/60
+            bg-cyan-400/30
           "
         />
-
-        <CoinBadge market={selected} />
-
-        <span className="min-w-0 flex-1 leading-tight">
-          <span className="block truncate text-[10px] font-bold text-white">
-            {selected.name}
-          </span>
-
-          <span className="block text-[7px] font-semibold tracking-[0.04em] text-slate-400">
-            {selected.pair}
-          </span>
-        </span>
-
-        <span
-          aria-hidden="true"
-          className="
-            grid
-            h-5
-            w-5
-            shrink-0
-            place-items-center
-            rounded-[7px]
-            border
-            border-cyan-400/15
-            bg-white/[0.025]
-          "
-        >
-          <ChevronDown
-            className={`
-              h-3
-              w-3
-              text-cyan-300
-              transition-transform
-              motion-reduce:transition-none
-              ${isOpen ? 'rotate-180' : ''}
-            `}
-            strokeWidth={2.5}
-          />
-        </span>
       </button>
 
-      {/* ================================================================ */}
-      {/* Market tray                                                       */}
-      {/* ================================================================ */}
+      {/* ================================================================== */}
+      {/* MARKET INSTRUMENT TRAY                                              */}
+      {/* ================================================================== */}
 
       {isOpen && (
         <div
@@ -307,22 +536,26 @@ function MarketSelector({
           onKeyDown={handleMenuKeyDown}
           className="
             absolute
-            left-0
+            left-1/2
             top-full
-            z-50
+            z-[100]
             mt-2
             w-[218px]
+            -translate-x-1/2
             overflow-hidden
-            rounded-[15px]
+            rounded-[16px]
             border
-            border-cyan-400/30
-            bg-black/75
-            p-1
-            shadow-[0_16px_35px_rgba(0,0,0,0.65),0_0_20px_rgba(0,190,255,0.16),inset_0_1px_0_rgba(255,255,255,0.08)]
+            border-cyan-300/20
+            bg-black/70
+            p-1.5
+            shadow-[0_18px_35px_rgba(0,0,0,0.68),0_0_22px_rgba(0,191,255,0.12),inset_0_1px_0_rgba(255,255,255,0.10),inset_0_-10px_20px_rgba(0,0,0,0.30)]
             backdrop-blur-xl
           "
         >
-          {/* Tray header */}
+          {/* ------------------------------------------------------------ */}
+          {/* Tray top rail                                                 */}
+          {/* ------------------------------------------------------------ */}
+
           <div
             aria-hidden="true"
             className="
@@ -334,35 +567,62 @@ function MarketSelector({
               pt-1
             "
           >
-            <span className="h-px w-5 bg-cyan-400/55" />
+            <span
+              className="
+                h-px
+                w-6
+                bg-cyan-400/55
+                shadow-[0_0_5px_rgba(0,191,255,0.30)]
+              "
+            />
 
             <span
               className="
                 text-[7px]
-                font-bold
+                font-black
                 uppercase
-                tracking-[0.24em]
-                text-slate-500
+                tracking-[0.25em]
+                text-white/35
               "
             >
-              Select Market
+              Market
             </span>
 
-            <span className="h-px flex-1 bg-cyan-400/15" />
+            <span
+              className="
+                h-px
+                flex-1
+                bg-gradient-to-r
+                from-cyan-400/20
+                to-transparent
+              "
+            />
           </div>
 
-          {/* Options */}
-          <div className="space-y-0.5">
+          {/* ------------------------------------------------------------ */}
+          {/* Options                                                       */}
+          {/* ------------------------------------------------------------ */}
+
+          <div className="space-y-1">
             {markets.map((market) => {
-              const isSelected = market.id === selected.id
+              const isSelected =
+                market.id ===
+                selected.id
 
               return (
                 <button
                   key={market.id}
                   type="button"
                   role="option"
-                  aria-selected={isSelected}
-                  onClick={(event) => choose(market.id, event)}
+                  aria-selected={
+                    isSelected
+                  }
+                  onClick={(event) =>
+                    choose(
+                      market.id,
+                      event,
+                    )
+                  }
                   className={`
                     group
                     relative
@@ -372,18 +632,26 @@ function MarketSelector({
                     gap-2
                     overflow-hidden
                     rounded-[11px]
+                    border
                     px-2
                     py-1.5
                     text-left
                     outline-none
-                    transition-[background-color,transform]
-                    hover:bg-cyan-400/[0.07]
-                    focus-visible:bg-cyan-400/[0.10]
-                    active:scale-[0.99]
-                    ${isSelected ? 'bg-cyan-400/[0.08]' : ''}
+                    transition-[background-color,border-color,transform]
+                    ${
+                      isSelected
+                        ? 'border-cyan-300/15 bg-cyan-400/[0.07]'
+                        : 'border-transparent bg-transparent'
+                    }
+                    hover:border-cyan-300/10
+                    hover:bg-cyan-400/[0.06]
+                    focus-visible:border-cyan-300/20
+                    focus-visible:bg-cyan-400/[0.09]
+                    active:translate-y-px
                   `}
                 >
-                  {/* Selected mechanical rail */}
+                  {/* Selected cyan rail */}
+
                   {isSelected && (
                     <span
                       aria-hidden="true"
@@ -393,20 +661,46 @@ function MarketSelector({
                         left-0
                         top-1.5
                         w-px
-                        bg-cyan-300/80
-                        shadow-[0_0_7px_rgba(0,190,255,0.7)]
+                        bg-cyan-300
+                        shadow-[0_0_7px_rgba(0,191,255,0.8)]
                       "
                     />
                   )}
 
-                  <CoinBadge market={market} />
+                  <CoinBadge
+                    market={market}
+                  />
 
-                  <span className="min-w-0 flex-1 leading-tight">
-                    <span className="block truncate text-[11px] font-bold text-white">
+                  <span
+                    className="
+                      min-w-0
+                      flex-1
+                      leading-none
+                    "
+                  >
+                    <span
+                      className="
+                        block
+                        truncate
+                        text-[10px]
+                        font-black
+                        text-white
+                      "
+                    >
                       {market.name}
                     </span>
 
-                    <span className="block text-[8px] font-semibold tracking-[0.04em] text-slate-500">
+                    <span
+                      className="
+                        mt-1
+                        block
+                        truncate
+                        text-[7px]
+                        font-bold
+                        tracking-[0.1em]
+                        text-white/35
+                      "
+                    >
                       {market.pair}
                     </span>
                   </span>
@@ -415,18 +709,26 @@ function MarketSelector({
                     <span
                       aria-hidden="true"
                       className="
+                        relative
                         grid
                         h-5
                         w-5
+                        shrink-0
                         place-items-center
-                        rounded-[6px]
+                        rounded-[7px]
                         border
-                        border-cyan-400/20
+                        border-cyan-300/20
                         bg-cyan-400/[0.06]
+                        shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)]
                       "
                     >
                       <Check
-                        className="h-3 w-3 text-cyan-300"
+                        className="
+                          h-3
+                          w-3
+                          text-cyan-300
+                          drop-shadow-[0_0_4px_rgba(0,191,255,0.55)]
+                        "
                         strokeWidth={3}
                       />
                     </span>
@@ -436,7 +738,10 @@ function MarketSelector({
             })}
           </div>
 
-          {/* Bottom structural rail */}
+          {/* ------------------------------------------------------------ */}
+          {/* Bottom mechanical rail                                        */}
+          {/* ------------------------------------------------------------ */}
+
           <div
             aria-hidden="true"
             className="
@@ -448,9 +753,31 @@ function MarketSelector({
               pb-1
             "
           >
-            <span className="h-px w-7 bg-cyan-400/40" />
-            <span className="h-[2px] w-1 rounded-full bg-cyan-300/60" />
-            <span className="h-px flex-1 bg-cyan-400/10" />
+            <span
+              className="
+                h-px
+                w-7
+                bg-cyan-400/45
+              "
+            />
+
+            <span
+              className="
+                h-[2px]
+                w-1
+                rounded-full
+                bg-cyan-300/65
+                shadow-[0_0_5px_rgba(0,191,255,0.45)]
+              "
+            />
+
+            <span
+              className="
+                h-px
+                flex-1
+                bg-cyan-400/10
+              "
+            />
           </div>
         </div>
       )}
