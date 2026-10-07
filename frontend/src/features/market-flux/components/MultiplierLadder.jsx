@@ -2,48 +2,57 @@
  * @file src/features/market-flux/components/MultiplierLadder.jsx
  *
  * @description
- * Bonus panel for Market Flux: the per-round multiplier table.
+ * Bonus panel for Market Flux: the per-round multiplier table and the
+ * completion bonus.
  *
  * LAYOUT
  * ---------------------------------------------------------------------------
- *   ┌──────────────[ BONUS ]──────────────┐
- *   │  ┌───────────────────────────┐      │
- *   │  │ Round 3  →  ×8            │   🪙 │
- *   │  │ Round 2  →  ×6            │      │
- *   │  │ Round 1  →  ×3     R30    │      │
- *   │  └───────────────────────────┘      │
- *   └─────────────────────────────────────┘
+ *   ┌────────────[ Bonus ×10 ]────────────┐
+ *   │  ┌──────────────────────┐ ┌────────┐ │
+ *   │  │ Round 3  →  ×8       │ │Win all 3│ │
+ *   │  │ Round 2  →  ×6       │ │  +R100  │ │
+ *   │  │ Round 1  →  ×3  R30  │ │  bonus  │ │
+ *   │  └──────────────────────┘ └────────┘ │
+ *   └──────────────────────────────────────┘
  *
- * - Best payout first, matching the reference.
+ * - Best payout first, as in the layout sketch.
  * - The current round is highlighted and also shows the amount at stake
  *   (stake × multiplier). A win adds it and a loss removes it.
- * - Rounds already played this sequence are dimmed with a tick, whether
- *   they were won or lost.
+ * - Rounds already played this run are dimmed with a tick, won or lost.
+ * - The "×10" in the title is the completion bonus: winning all three
+ *   rounds pays stake × 10 on top of the Round 3 win. The block on the
+ *   right shows the amount for the current stake. Once a round has been
+ *   lost the bonus is out of reach for that run, and the block dims.
  *
- * The rows read from ROUND_CONFIG, so changing a multiplier in the
- * simulation hook updates this table automatically.
+ * The rows read from ROUND_CONFIG and the bonus from BONUS_MULTIPLIER, so
+ * changing either in the simulation hook updates this panel. A bonus
+ * multiplier of 0 hides the bonus entirely.
  *
  * "Round N" is written out in full rather than "R N", because R also means
  * rand and "R3 → ×8" next to "R30" is easy to misread.
  *
  * LAYOUT OWNERSHIP
  * ---------------------------------------------------------------------------
- * No landmark and no horizontal padding. The section in MarketFlux.jsx
- * owns both.
+ * No landmark and no horizontal padding. The wrapper in MarketFlux.jsx owns
+ * both.
  *
  * Presentational only; all state comes from the simulation hook.
  */
 
-import { useId } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
 
-import { ROUND_CONFIG } from '../hooks/useMarketSimulation'
+import {
+  BONUS_MULTIPLIER,
+  ROUND_CONFIG,
+} from '../hooks/useMarketSimulation'
 import { formatMoney } from '../utils/formatMoney'
 
 /**
  * Highest payout first.
  */
 const ROWS = [...ROUND_CONFIG].reverse()
+
+const HAS_BONUS = BONUS_MULTIPLIER > 0
 
 /* -------------------------------------------------------------------------- */
 /* Row styling                                                                */
@@ -67,24 +76,43 @@ const ROW_STATES = {
 /**
  * @param {object} props
  * @param {number} props.round Current round, 1-based.
- * @param {number} [props.roundsPlayed] Rounds finished in this sequence,
- *   win or lose. Defaults to `round - 1`.
+ * @param {number} [props.roundsPlayed] Rounds finished in this run, win or
+ *   lose. Defaults to `round - 1`.
+ * @param {number} [props.completedRounds] Rounds WON in this run. When
+ *   given, the bonus dims once a round has been lost.
  * @param {number} [props.stake] Current stake. When given, the current row
- *   shows the amount at stake.
+ *   shows the amount at stake and the bonus block shows its amount.
  * @returns {JSX.Element}
  */
 function MultiplierLadder({
   round,
   roundsPlayed,
+  completedRounds,
   stake,
 }) {
   const played =
     roundsPlayed ?? round - 1
 
+  /**
+   * The bonus needs every finished round to have been won.
+   */
+  const bonusAlive =
+    completedRounds === undefined ||
+    completedRounds >= played
+
+  const bonusAmount =
+    stake === undefined
+      ? null
+      : stake * BONUS_MULTIPLIER
+
   return (
     <div
       role="group"
-      aria-label="Round multipliers"
+      aria-label={
+        HAS_BONUS
+          ? `Round multipliers. Win all three rounds for a ×${BONUS_MULTIPLIER} bonus.`
+          : 'Round multipliers'
+      }
       className="
         relative
         pt-2.5
@@ -112,6 +140,7 @@ function MultiplierLadder({
             top-0
             -translate-x-1/2
             -translate-y-1/2
+            whitespace-nowrap
             rounded-full
             border
             border-cyan-300/30
@@ -126,15 +155,35 @@ function MultiplierLadder({
           "
         >
           Bonus
+
+          {HAS_BONUS && (
+            <span
+              className="
+                ml-1
+                inline-block
+                -translate-y-[3px]
+                text-[10px]
+                font-black
+                tracking-normal
+                text-cyan-100
+              "
+            >
+              ×{BONUS_MULTIPLIER}
+            </span>
+          )}
         </p>
 
         <div
-          className="
+          className={`
             grid
-            grid-cols-[1fr_auto]
-            items-center
-            gap-3
-          "
+            items-stretch
+            gap-2.5
+            ${
+              HAS_BONUS
+                ? 'grid-cols-[1fr_auto]'
+                : 'grid-cols-1'
+            }
+          `}
         >
           {/* ============================================================ */}
           {/* Payout table                                                  */}
@@ -181,10 +230,15 @@ function MultiplierLadder({
           </ul>
 
           {/* ============================================================ */}
-          {/* Multiplier icon                                               */}
+          {/* Completion bonus                                              */}
           {/* ============================================================ */}
 
-          <CoinStack className="h-14 w-14" />
+          {HAS_BONUS && (
+            <BonusBadge
+              amount={bonusAmount}
+              alive={bonusAlive}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -317,106 +371,86 @@ function PayoutRow({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Coin stack                                                                 */
+/* Completion bonus                                                           */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Stacked-coins multiplier icon: three coins, an up arrow, a small cross.
+ * The prize for winning all three rounds.
  *
  * @param {object} props
- * @param {string} [props.className] Sizing, e.g. "h-14 w-14".
+ * @param {number|null} props.amount Bonus for the current stake, or null
+ *   when no stake is known (the multiplier is shown instead).
+ * @param {boolean} props.alive False once a round has been lost this run.
  * @returns {JSX.Element}
  */
-function CoinStack({ className = '' }) {
-  const id =
-    useId().replace(/:/g, '')
-
-  const sideId =
-    `coin-side-${id}`
-
-  const topId =
-    `coin-top-${id}`
-
-  /* Coin centres, bottom to top. */
-  const coins = [34, 27, 20]
-
+function BonusBadge({
+  amount,
+  alive,
+}) {
   return (
-    <svg
-      viewBox="0 0 56 54"
-      aria-hidden="true"
-      className={className}
-      style={{
-        filter:
-          'drop-shadow(0 0 6px rgba(40,190,255,0.35))',
-      }}
+    <div
+      className={`
+        flex
+        w-[76px]
+        flex-col
+        items-center
+        justify-center
+        gap-0.5
+        rounded-[10px]
+        border
+        px-1
+        py-1.5
+        text-center
+        transition-[opacity,background-color,border-color]
+        duration-300
+        ${
+          alive
+            ? 'border-cyan-300/35 bg-cyan-400/[0.08]'
+            : 'border-white/10 bg-white/[0.02] opacity-45'
+        }
+      `}
     >
-      <defs>
-        <linearGradient
-          id={sideId}
-          x1="0"
-          y1="0"
-          x2="1"
-          y2="0"
-        >
-          <stop offset="0" stopColor="#12344a" />
-          <stop offset="0.45" stopColor="#6fd3ff" />
-          <stop offset="1" stopColor="#0d2b3f" />
-        </linearGradient>
+      <span
+        className="
+          text-[10px]
+          font-semibold
+          leading-tight
+          text-white/60
+        "
+      >
+        Win all 3
+      </span>
 
-        <linearGradient
-          id={topId}
-          x1="0"
-          y1="0"
-          x2="0"
-          y2="1"
-        >
-          <stop offset="0" stopColor="#d6f6ff" />
-          <stop offset="1" stopColor="#3aa6d8" />
-        </linearGradient>
-      </defs>
+      <span
+        className={`
+          whitespace-nowrap
+          text-[15px]
+          font-black
+          leading-none
+          tabular-nums
+          ${
+            alive
+              ? 'text-cyan-200 drop-shadow-[0_0_6px_rgba(80,220,255,0.6)]'
+              : 'text-white/50'
+          }
+        `}
+      >
+        {amount === null
+          ? `×${BONUS_MULTIPLIER}`
+          : formatMoney(amount, { sign: true })}
+      </span>
 
-      {coins.map((cy) => (
-        <g key={cy}>
-          {/* Coin edge */}
-          <path
-            d={`M13 ${cy} v5 a15 5.5 0 0 0 30 0 v-5 a15 5.5 0 0 0 -30 0 Z`}
-            fill={`url(#${sideId})`}
-            stroke="rgba(160,230,255,0.55)"
-            strokeWidth="0.6"
-          />
-
-          {/* Coin face */}
-          <ellipse
-            cx="28"
-            cy={cy}
-            rx="15"
-            ry="5.5"
-            fill={`url(#${topId})`}
-            stroke="rgba(200,240,255,0.8)"
-            strokeWidth="0.6"
-          />
-        </g>
-      ))}
-
-      {/* Up arrow */}
-      <path
-        d="M28 12 V4 M23.5 8.5 L28 4 L32.5 8.5"
-        fill="none"
-        stroke="#7DE8FF"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {/* Multiplier cross */}
-      <path
-        d="M44 44 l5 5 M49 44 l-5 5"
-        fill="none"
-        stroke="#7DE8FF"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
+      <span
+        className="
+          text-[10px]
+          font-semibold
+          leading-tight
+          text-white/45
+        "
+      >
+        {alive ? 'bonus' : 'missed'}
+      </span>
+    </div>
   )
 }
 
