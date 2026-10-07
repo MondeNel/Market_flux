@@ -6,7 +6,8 @@
  *
  * Layout:
  * - Left: compact 3D Market Flux wordmark.
- * - Right: pointed liquid-glass player HUD.
+ * - Right: pointed liquid-glass player HUD, in the order from the layout
+ *   sketch: Balance | Followers | Rank.
  *
  * DESIGN
  * ---------------------------------------------------------------------------
@@ -17,24 +18,33 @@
  * - White specular highlights provide the physical/glass feel.
  * - Compact enough to preserve gameplay space on mobile.
  *
+ * LAYOUT OWNERSHIP
+ * ---------------------------------------------------------------------------
+ * This component is rendered directly by MarketFlux.jsx with no wrapper, so
+ * the <header> landmark and the horizontal padding live here. The brand
+ * rail beneath the wordmark uses a negative left margin to run to the
+ * screen edge, cancelling this component's own padding.
+ *
  * No gameplay state is managed here.
  */
 
 import { Crown, UserRound, UsersRound } from 'lucide-react'
 
+import { formatMoney } from '../utils/formatMoney'
+
 /**
  * Market Flux HUD header.
  *
  * @param {object} props
- * @param {number|string} [props.balance=124.5] Player balance.
- * @param {number|string} [props.rank=94] Player rank.
+ * @param {number|string} [props.balance=100] Player balance.
  * @param {number|string} [props.followers=20] Follower count.
+ * @param {number|string} [props.rank=21] Player rank.
  * @returns {JSX.Element}
  */
 function MarketFluxHeader({
-  balance = 124.5,
-  rank = 94,
+  balance = 100,
   followers = 20,
+  rank = 21,
 }) {
   return (
     <header className="relative z-20 w-full px-3 pt-2.5">
@@ -43,8 +53,8 @@ function MarketFluxHeader({
 
         <PlayerPanel
           balance={balance}
-          rank={rank}
           followers={followers}
+          rank={rank}
         />
       </div>
 
@@ -195,14 +205,14 @@ function Brand() {
  *
  * @param {object} props
  * @param {number|string} props.balance
- * @param {number|string} props.rank
  * @param {number|string} props.followers
+ * @param {number|string} props.rank
  * @returns {JSX.Element}
  */
 function PlayerPanel({
   balance,
-  rank,
   followers,
+  rank,
 }) {
   return (
     <div
@@ -463,15 +473,7 @@ function PlayerPanel({
         <div className="flex min-w-0 items-center gap-1.5">
           <Metric
             label="Balance"
-            value={`R ${Number(balance).toFixed(2)}`}
-          />
-
-          <MetricDivider />
-
-          <Metric
-            icon={Crown}
-            label="Rank"
-            value={`#${rank}`}
+            value={formatMoney(balance, { decimals: 2 })}
           />
 
           <MetricDivider />
@@ -480,6 +482,14 @@ function PlayerPanel({
             icon={UsersRound}
             label="Followers"
             value={followers}
+          />
+
+          <MetricDivider />
+
+          <Metric
+            icon={Crown}
+            label="Rank"
+            value={`#${rank}`}
           />
         </div>
       </div>
