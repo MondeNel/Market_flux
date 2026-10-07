@@ -2,45 +2,50 @@
  * @file src/features/market-flux/components/MarketNumberSpinner.jsx
  *
  * @description
- * Mechanical result reel for Market Flux.
+ * Mechanical 3D result reel for Market Flux.
  *
- * The reel is the hero of the game screen. It does not show the live
- * price (the small live row beneath it does that). It shows the RESULT of
- * the round.
+ * The reel is the visual hero of the game screen.
  *
- * LIFECYCLE
+ * DESIGN
  * ---------------------------------------------------------------------------
- * idle / live   The reel rests on zeros, in the same shape as the price
- *               (for example 00000,00).
+ * - Physical mechanical reel chambers
+ * - Deep black glass housing
+ * - Cylindrical lighting and depth
+ * - Subtle cyan mechanical edge
+ * - White specular reflections
+ * - Neon result colouring
+ * - No flat dashboard/card treatment
  *
- * revealing     When the round ends, every digit rolls up from zero and
- *               brakes onto the final price, left to right. A near-miss
- *               tease holds the last digit one step short before it
- *               creeps home.
- *
- * result        The final price is held on the reel.
- *
- * next round    The reel snaps back to zeros.
- *
- * LAYERS
+ * FUNCTION
  * ---------------------------------------------------------------------------
- *   ReelFrame     static housing, rails, glass and chevrons
- *   DigitReel     the animating digit strips (this file)
+ * idle / live
+ *   The reel rests on zeroes in the same shape as the market price.
  *
- * RESULT COLOUR BEHAVIOUR
+ * revealing
+ *   Each digit rolls upward from zero and brakes onto the final price.
+ *   Digits reveal from left to right.
+ *
+ * result
+ *   The final price remains on the reel.
+ *
+ * next round
+ *   The reel returns to zero.
+ *
+ * RESULT COLOUR
  * ---------------------------------------------------------------------------
- * While the reveal spin runs:
- *   all digits remain neutral.
+ * While spinning:
+ *   All digits remain neutral.
  *
- * Once the reel has settled:
- *   digits that differ from the round-open price are coloured by the
- *   direction the market moved:
+ * Once settled:
+ *   final > startPrice -> changed digits glow green
+ *   final < startPrice -> changed digits glow red
  *
- *     final > open  ->  up / green
- *     final < open  ->  down / red
- *
- * Price format is a decimal comma with no thousands grouping, for example
- * 86426,21, so every character is a digit or the single comma.
+ * @param {object} props
+ * @param {number} props.value
+ * @param {number} [props.decimals=2]
+ * @param {'idle'|'live'|'revealing'|'result'} [props.phase='idle']
+ * @param {boolean} [props.tease=false]
+ * @param {number} [props.startPrice]
  */
 
 import {
@@ -50,7 +55,6 @@ import {
 } from 'react'
 
 import { formatPrice } from '../utils/formatMoney'
-
 import ReelFrame from './ReelFrame'
 
 /* -------------------------------------------------------------------------- */
@@ -125,8 +129,7 @@ function isDigit(char) {
 }
 
 /**
- * Digit size scales down as the price gets longer so seven digits
- * (for example 86426,21) still fit on a 360px screen.
+ * Scale digit size according to the number of numeric characters.
  *
  * @param {number} digitCount
  * @returns {string}
@@ -144,66 +147,63 @@ function getFontSize(digitCount) {
 }
 
 /**
- * Finds changed numeric positions.
+ * Find which numeric positions changed.
  *
- * Digits are compared from the right so that the decimal comma does not
- * affect alignment.
+ * Comparison is performed from the right so the decimal separator
+ * never changes the positional relationship between digits.
  *
  * @param {string} current
  * @param {string} previous
  * @returns {boolean[]}
  */
-function getChangedDigits(
-  current,
-  previous,
-) {
-  const currentDigits =
-    current
-      .split('')
-      .filter(isDigit)
+function getChangedDigits(current, previous) {
+  const currentDigits = current
+    .split('')
+    .filter(isDigit)
 
-  const previousDigits =
-    previous
-      .split('')
-      .filter(isDigit)
+  const previousDigits = previous
+    .split('')
+    .filter(isDigit)
 
-  return currentDigits.map(
-    (digit, index) => {
-      const distanceFromRight =
-        currentDigits.length -
-        1 -
-        index
+  return currentDigits.map((digit, index) => {
+    const distanceFromRight =
+      currentDigits.length - 1 - index
 
-      const previousIndex =
-        previousDigits.length -
-        1 -
-        distanceFromRight
+    const previousIndex =
+      previousDigits.length -
+      1 -
+      distanceFromRight
 
-      return (
-        digit !==
-        (previousIndex >= 0
+    return (
+      digit !==
+      (
+        previousIndex >= 0
           ? previousDigits[previousIndex]
-          : null)
+          : null
       )
-    },
-  )
+    )
+  })
+}
+
+/**
+ * Determine whether reduced motion is preferred.
+ *
+ * @returns {boolean}
+ */
+function prefersReducedMotion() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  return window.matchMedia(
+    '(prefers-reduced-motion: reduce)',
+  ).matches
 }
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                             */
 /* -------------------------------------------------------------------------- */
 
-/**
- * @param {object} props
- * @param {number} props.value Final market price. Only shown once the round
- *   is revealing; before that the reel shows zeros in the same shape.
- * @param {number} props.decimals
- * @param {'idle'|'live'|'revealing'|'result'} [props.phase]
- * @param {boolean} [props.tease] Near-miss reveal.
- * @param {number} [props.startPrice] Price when the round opened, used to
- *   colour the revealed digits.
- * @returns {JSX.Element}
- */
 function MarketNumberSpinner({
   value,
   decimals = 2,
@@ -211,14 +211,13 @@ function MarketNumberSpinner({
   tease = false,
   startPrice,
 }) {
-  const formatted =
-    formatPrice(
-      value,
-      decimals,
-    )
+  const formatted = formatPrice(
+    value,
+    decimals,
+  )
 
   /**
-   * The reel rests on zeros until the round is revealed.
+   * The reel rests on zeroes before reveal.
    */
   const resting =
     phase === 'idle' ||
@@ -229,17 +228,10 @@ function MarketNumberSpinner({
       ? formatted.replace(/\d/g, '0')
       : formatted
 
-  /**
-   * Track reveal spins.
-   *
-   * `revealId` increments each time the phase enters 'revealing'. Reels
-   * spin when they see a new id. `settledId` catches up when the last
-   * reel finishes braking.
-   *
-   * Incrementing during render means the reels receive the new id in the
-   * same commit as the final price, so the result is never flashed before
-   * the spin starts, and the spin always starts from zero.
-   */
+  /* ------------------------------------------------------------------------ */
+  /* Reveal tracking                                                          */
+  /* ------------------------------------------------------------------------ */
+
   const [trackedPhase, setTrackedPhase] =
     useState(phase)
 
@@ -261,9 +253,10 @@ function MarketNumberSpinner({
     phase === 'revealing' &&
     settledId !== revealId
 
-  /**
-   * Result colouring: which digits moved, and which way.
-   */
+  /* ------------------------------------------------------------------------ */
+  /* Result direction                                                         */
+  /* ------------------------------------------------------------------------ */
+
   const direction =
     startPrice === undefined
       ? 'idle'
@@ -272,6 +265,10 @@ function MarketNumberSpinner({
         : value < startPrice
           ? 'down'
           : 'idle'
+
+  /* ------------------------------------------------------------------------ */
+  /* Changed digits                                                          */
+  /* ------------------------------------------------------------------------ */
 
   const changedDigits =
     !resting &&
@@ -285,8 +282,11 @@ function MarketNumberSpinner({
         )
       : []
 
-  const chars =
-    shown.split('')
+  /* ------------------------------------------------------------------------ */
+  /* Display metrics                                                          */
+  /* ------------------------------------------------------------------------ */
+
+  const chars = shown.split('')
 
   const numericDigitCount =
     chars.filter(isDigit).length
@@ -295,6 +295,10 @@ function MarketNumberSpinner({
     getFontSize(numericDigitCount)
 
   let digitIndex = -1
+
+  /* ------------------------------------------------------------------------ */
+  /* Render                                                                   */
+  /* ------------------------------------------------------------------------ */
 
   return (
     <div
@@ -315,6 +319,10 @@ function MarketNumberSpinner({
         tease={tease}
       >
         {chars.map((char, index) => {
+          /* ---------------------------------------------------------------- */
+          /* Decimal separator                                                 */
+          /* ---------------------------------------------------------------- */
+
           if (!isDigit(char)) {
             return (
               <span
@@ -335,8 +343,7 @@ function MarketNumberSpinner({
                 "
                 style={{
                   fontSize,
-                  transform:
-                    'translateY(0.3em)',
+                  transform: 'translateY(0.3em)',
                 }}
               >
                 {char}
@@ -350,6 +357,10 @@ function MarketNumberSpinner({
             digitIndex ===
             numericDigitCount - 1
 
+          /**
+           * During the actual reveal all digits remain neutral.
+           * Colour is applied only after the final reel settles.
+           */
           const tone =
             !isSpinning &&
             changedDigits[digitIndex]
@@ -390,21 +401,27 @@ function MarketNumberSpinner({
 /* -------------------------------------------------------------------------- */
 
 /**
- * One digit strip.
+ * Individual mechanical digit reel.
  *
- * The strip snaps to its digit whenever the digit changes, and plays the
- * spin only when `revealId` has increased since the last run.
+ * Each reel:
+ * - starts at zero
+ * - accelerates
+ * - spins continuously
+ * - brakes
+ * - optionally pauses one digit short
+ * - creeps into position
+ * - overshoots slightly
+ * - settles exactly on the target digit
  *
  * @param {object} props
  * @param {number} props.digit
- * @param {number} props.order Position among the numeric digits, left to right.
- * @param {number} props.total Number of numeric digits.
- * @param {number} props.revealId Increments to request a reveal spin.
+ * @param {number} props.order
+ * @param {number} props.total
+ * @param {number} props.revealId
  * @param {boolean} props.tease
  * @param {{color:string,shadow:string}} props.tone
  * @param {string} props.fontSize
  * @param {() => void} [props.onComplete]
- * @returns {JSX.Element}
  */
 function DigitReel({
   digit,
@@ -428,10 +445,18 @@ function DigitReel({
   const handledRevealRef =
     useRef(revealId)
 
+  /* ------------------------------------------------------------------------ */
+  /* Callback reference                                                       */
+  /* ------------------------------------------------------------------------ */
+
   useEffect(() => {
     completeRef.current =
       onComplete
   }, [onComplete])
+
+  /* ------------------------------------------------------------------------ */
+  /* Reel animation                                                           */
+  /* ------------------------------------------------------------------------ */
 
   useEffect(() => {
     const strip =
@@ -442,10 +467,15 @@ function DigitReel({
     }
 
     const reducedMotion =
-      window.matchMedia(
-        '(prefers-reduced-motion: reduce)',
-      ).matches
+      prefersReducedMotion()
 
+    /**
+     * Draw the current reel position.
+     *
+     * The strip contains repeated digits. Keeping the transform
+     * in the middle of the strip gives the reel enough physical
+     * travel to appear continuous.
+     */
     const draw = (
       position,
       speed = 0,
@@ -482,9 +512,10 @@ function DigitReel({
     handledRevealRef.current =
       revealId
 
-    /**
-     * Snap: reset to zeros, first paint, and reduced motion.
-     */
+    /* ---------------------------------------------------------------------- */
+    /* Snap state                                                             */
+    /* ---------------------------------------------------------------------- */
+
     if (
       !spinRequested ||
       reducedMotion
@@ -504,9 +535,10 @@ function DigitReel({
       return undefined
     }
 
-    /**
-     * Reveal spin, rolling up from the resting position (zero).
-     */
+    /* ---------------------------------------------------------------------- */
+    /* Reveal timing                                                          */
+    /* ---------------------------------------------------------------------- */
+
     const start =
       positionRef.current
 
@@ -529,16 +561,22 @@ function DigitReel({
       SETTLE_MS / 1000
 
     const teaseHold =
-      tease ? 0.15 : 0
+      tease
+        ? 0.15
+        : 0
 
     const teaseCreep =
-      tease ? 0.22 : 0
+      tease
+        ? 0.22
+        : 0
 
     const ahead =
       mod10(digit - start)
 
     const minimumTurns =
-      tease ? 1 : 0
+      tease
+        ? 1
+        : 0
 
     const effective =
       spin -
@@ -551,7 +589,7 @@ function DigitReel({
         Math.round(
           (
             SPIN_SPEED *
-              effective -
+            effective -
             ahead
           ) / 10,
         ),
@@ -566,7 +604,8 @@ function DigitReel({
       (tease ? 1 : 0)
 
     const speed =
-      brakeEnd / effective
+      brakeEnd /
+      effective
 
     const spinEnd =
       speed *
@@ -579,18 +618,26 @@ function DigitReel({
       spin
 
     const holdAt =
-      brakeAt + brake
+      brakeAt +
+      brake
 
     const creepAt =
-      holdAt + teaseHold
+      holdAt +
+      teaseHold
 
     const settleAt =
-      creepAt + teaseCreep
+      creepAt +
+      teaseCreep
 
     const endAt =
-      settleAt + settle
+      settleAt +
+      settle
 
     let frameId = 0
+
+    /* ---------------------------------------------------------------------- */
+    /* Animation frame                                                        */
+    /* ---------------------------------------------------------------------- */
 
     const frame = (now) => {
       const elapsed =
@@ -601,6 +648,10 @@ function DigitReel({
 
       let offset = 0
       let currentSpeed = 0
+
+      /* -------------------------------------------------------------- */
+      /* Acceleration                                                   */
+      /* -------------------------------------------------------------- */
 
       if (elapsed < ramp) {
         offset =
@@ -614,7 +665,13 @@ function DigitReel({
         currentSpeed =
           (speed * elapsed) /
           ramp
-      } else if (
+      }
+
+      /* -------------------------------------------------------------- */
+      /* Full speed                                                     */
+      /* -------------------------------------------------------------- */
+
+      else if (
         elapsed < brakeAt
       ) {
         offset =
@@ -622,35 +679,56 @@ function DigitReel({
           (elapsed - ramp / 2)
 
         currentSpeed = speed
-      } else if (
+      }
+
+      /* -------------------------------------------------------------- */
+      /* Braking                                                        */
+      /* -------------------------------------------------------------- */
+
+      else if (
         elapsed < holdAt
       ) {
         const progress =
           (
-            elapsed - brakeAt
-          ) / brake
+            elapsed -
+            brakeAt
+          ) /
+          brake
 
         offset =
           spinEnd +
           brakeDistance *
-            (
-              1 -
-              (1 - progress) ** 3
-            )
+          (
+            1 -
+            (1 - progress) ** 3
+          )
 
         currentSpeed =
           speed *
           (1 - progress) ** 2
-      } else if (
+      }
+
+      /* -------------------------------------------------------------- */
+      /* Near-miss hold                                                 */
+      /* -------------------------------------------------------------- */
+
+      else if (
         elapsed < creepAt
       ) {
         offset = brakeEnd
-      } else if (
+      }
+
+      /* -------------------------------------------------------------- */
+      /* Near-miss creep                                                */
+      /* -------------------------------------------------------------- */
+
+      else if (
         elapsed < settleAt
       ) {
         const progress =
           (
-            elapsed - creepAt
+            elapsed -
+            creepAt
           ) /
           Math.max(
             teaseCreep,
@@ -661,30 +739,50 @@ function DigitReel({
           progress < 0.5
             ? 4 * progress ** 3
             : 1 -
-              ((-2 * progress + 2) ** 3) /
-                2
+              (
+                (-2 * progress + 2) ** 3
+              ) /
+              2
 
         offset =
           brakeEnd +
-          (tease ? 1 : 0) *
-            eased
-      } else if (
+          (
+            tease
+              ? 1
+              : 0
+          ) *
+          eased
+      }
+
+      /* -------------------------------------------------------------- */
+      /* Final overshoot                                                */
+      /* -------------------------------------------------------------- */
+
+      else if (
         elapsed < endAt
       ) {
         const progress =
           (
-            elapsed - settleAt
-          ) / settle
+            elapsed -
+            settleAt
+          ) /
+          settle
 
         offset =
           travel +
           OVERSHOOT *
-            Math.sin(
-              Math.PI *
-                progress,
-            ) *
-            (1 - progress)
-      } else {
+          Math.sin(
+            Math.PI *
+            progress,
+          ) *
+          (1 - progress)
+      }
+
+      /* -------------------------------------------------------------- */
+      /* Settled                                                         */
+      /* -------------------------------------------------------------- */
+
+      else {
         positionRef.current =
           digit
 
@@ -714,9 +812,7 @@ function DigitReel({
       requestAnimationFrame(frame)
 
     return () =>
-      cancelAnimationFrame(
-        frameId,
-      )
+      cancelAnimationFrame(frameId)
   }, [
     digit,
     order,
@@ -724,6 +820,10 @@ function DigitReel({
     revealId,
     tease,
   ])
+
+  /* ------------------------------------------------------------------------ */
+  /* Reel chamber                                                             */
+  /* ------------------------------------------------------------------------ */
 
   return (
     <span
@@ -740,9 +840,9 @@ function DigitReel({
         height: DISPLAY_HEIGHT,
       }}
     >
-      {/* -------------------------------------------------------------- */}
-      {/* Individual reel chamber                                        */}
-      {/* -------------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Individual reel chamber                                             */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
@@ -763,9 +863,9 @@ function DigitReel({
         }}
       />
 
-      {/* -------------------------------------------------------------- */}
-      {/* Subtle reel separator                                           */}
-      {/* -------------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Reel separator                                                      */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
@@ -784,9 +884,9 @@ function DigitReel({
         "
       />
 
-      {/* -------------------------------------------------------------- */}
-      {/* Reel strip                                                      */}
-      {/* -------------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Repeating digit strip                                                */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         ref={stripRef}
@@ -820,8 +920,7 @@ function DigitReel({
                 height: CELL_HEIGHT,
                 fontSize,
                 color: tone.color,
-                textShadow:
-                  tone.shadow,
+                textShadow: tone.shadow,
                 transform:
                   'translateZ(0)',
               }}
@@ -847,9 +946,9 @@ function DigitReel({
         )}
       </span>
 
-      {/* -------------------------------------------------------------- */}
-      {/* Cylindrical lighting                                           */}
-      {/* -------------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Cylindrical side lighting                                           */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
@@ -864,6 +963,10 @@ function DigitReel({
           to-black/[0.20]
         "
       />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Upper shadow                                                        */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
@@ -881,6 +984,10 @@ function DigitReel({
         "
       />
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Lower shadow                                                        */}
+      {/* ------------------------------------------------------------------ */}
+
       <span
         aria-hidden="true"
         className="
@@ -897,9 +1004,9 @@ function DigitReel({
         "
       />
 
-      {/* -------------------------------------------------------------- */}
-      {/* Centre reflection                                               */}
-      {/* -------------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Centre reflection                                                   */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
@@ -916,9 +1023,9 @@ function DigitReel({
         "
       />
 
-      {/* -------------------------------------------------------------- */}
-      {/* Mechanical blue edge                                           */}
-      {/* -------------------------------------------------------------- */}
+      {/* ------------------------------------------------------------------ */}
+      {/* Mechanical cyan edge                                                */}
+      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
