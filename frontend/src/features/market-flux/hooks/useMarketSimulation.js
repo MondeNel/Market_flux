@@ -6,18 +6,21 @@
  *
  * GAME MODEL
  * ---------------------------------------------------------------------------
- * Market Flux is a three-round market prediction game.
- *
- * Each round has a fixed multiplier:
+ * Market Flux is a three-round streak game. The rounds are levels on a
+ * ladder, and each level has a fixed multiplier:
  *
  *   Round 1 -> ×3
  *   Round 2 -> ×6
  *   Round 3 -> ×8
  *
- * The player selects UP or DOWN and the round starts. The selected market
- * continues to simulate movement until the round finishes.
+ * The player starts at Round 1 and can only climb by winning:
  *
- * The final market value determines whether the prediction was correct.
+ *   WIN  -> move up to the next round
+ *   LOSS -> fall back to Round 1 and the streak is lost
+ *
+ * Winning Round 3 completes the streak: the completion bonus is paid and
+ * the player starts again at Round 1. A loss at Round 1 simply leaves the
+ * player at Round 1.
  *
  * Round settlement:
  *
@@ -30,31 +33,57 @@
  *   Stake: R10
  *   Round 1: ×3
  *
- *   WIN  -> +R30
- *   LOSS -> -R30 (or less, if the balance is below R30)
+ *   WIN  -> +R30, now on Round 2
+ *   LOSS -> -R30, still on Round 1
+ *
+ * SPIN TIMING
+ * ---------------------------------------------------------------------------
+ * From the tap to the reels settling takes ROUND_MS + REVEAL_MS = 2.5 s:
+ *
+ *   0 - 1.0 s   the reels spin                          (ROUND_MS)
+ *   1.0 - 2.5 s the reels stop on the final price       (REVEAL_MS)
+ *
+ * A near-miss tease adds NEAR_MISS_EXTRA_MS to the reveal.
+ *
+ * MARKET MOVEMENT
+ * ---------------------------------------------------------------------------
+ * The market moves for the whole spin, in step with the reels. The moment
+ * the player taps UP or DOWN, the price path for the spin is generated:
+ *
+ *   one price every PATH_STEP_MS, ending on the final price
+ *
+ * The live price then walks along that path while the reels spin and stop,
+ * and reaches the final price at the same moment the last reel settles.
+ * Both are driven from the tap, so they stay in step.
+ *
+ * Outside a spin the market ticks every TICK_MS as before.
+ *
+ * `resultPrice` is the final price. The reel lands on it while the live
+ * price is still on its way there.
  *
  * COMPLETION BONUS
  * ---------------------------------------------------------------------------
- * Winning all three rounds of a run pays an extra
+ * Winning Round 3 means three wins in a row, and pays an extra
  *
  *   stake × BONUS_MULTIPLIER (×10)
  *
  * on top of the Round 3 win. The stake used is the Round 3 stake.
  *
- * Example (R10 stake every round, all three won):
+ * Example (R10 stake every round, three wins in a row):
  *
  *   +R30  +R60  +R80  +R100 bonus  =  +R270
  *
  * PROGRESS MODEL
  * ---------------------------------------------------------------------------
- * Two different counters describe progress through a three-round sequence:
+ *   round            the level the player is on (the next spin's round)
+ *   completedRounds  wins in the current streak. Reset when the streak
+ *                    ends, by a loss or by completing Round 3
+ *   roundsPlayed     the same value, kept under this name for the UI
+ *   netResult        net winnings of the current streak, including any
+ *                    bonus. Reset when the streak ends
  *
- *   completedRounds  rounds the player WON (wins only)
- *   roundsPlayed     rounds finished, win or lose
- *   spinsRemaining   rounds the player can still start
- *
- * UI that shows progress ("Round 2 / 3", spin dots, bonus-table ticks)
- * should use roundsPlayed and spinsRemaining.
+ * The streak is only reset when the next round begins, so the result of a
+ * lost spin stays readable on screen first.
  *
  * The reel is intentionally not responsible for game rules.
  * It only reveals the final market value.
@@ -79,8 +108,8 @@ import {
 /**
  * Multiplier attached to each round.
  *
- * The multiplier belongs to the round itself rather than a progressive
- * success ladder.
+ * The multiplier belongs to the level itself: the higher the level, the
+ * bigger the multiplier.
  */
 export const ROUND_CONFIG = [
   {
@@ -98,7 +127,7 @@ export const ROUND_CONFIG = [
 ]
 
 /**
- * Number of rounds in one Market Flux game.
+ * Number of rounds in one streak.
  */
 export const TOTAL_ROUNDS =
   ROUND_CONFIG.length
@@ -106,8 +135,8 @@ export const TOTAL_ROUNDS =
 /**
  * Completion bonus multiplier.
  *
- * Winning all three rounds of a run pays stake × BONUS_MULTIPLIER on top
- * of the Round 3 win. Set to zero to disable the bonus.
+ * Winning Round 3 (three wins in a row) pays stake × BONUS_MULTIPLIER on
+ * top of the Round 3 win. Set to zero to disable the bonus.
  */
 export const BONUS_MULTIPLIER = 10
 
@@ -116,24 +145,44 @@ export const MAX_STAKE = 500
 export const STAKE_STEP = 5
 
 /**
- * Length of an active market round.
+ * How long the reels free-spin before they start to stop. The round is
+ * settled on a timer this long after the tap.
  */
-export const ROUND_MS = 8000
+export const ROUND_MS = 1000
 
 /**
- * Frequency of simulated market updates.
+ * How long the reels take to stop on the final value. Must be longer than
+ * the reel's landing animation (about 1.4 s for a seven-digit price),
+ * otherwise the result is shown before the last reel has stopped.
+ *
+ * ROUND_MS + REVEAL_MS is the total spin time: 2.5 s.
  */
-export const TICK_MS = 1000
-
-/**
- * Time required for the reel to reveal the final value.
- */
-export const REVEAL_MS = 3400
+export const REVEAL_MS = 1500
 
 /**
  * Additional reveal time for near-miss feedback.
  */
 export const NEAR_MISS_EXTRA_MS = 700
+
+/**
+ * Time between live price updates during a spin.
+ */
+export const PATH_STEP_MS = 250
+
+/**
+ * Number of price updates in one spin. The last one is the final price
+ * and lands as the reels settle.
+ */
+export const SPIN_STEPS =
+  Math.round(
+    (ROUND_MS + REVEAL_MS) /
+      PATH_STEP_MS,
+  )
+
+/**
+ * Frequency of market updates while no spin is running.
+ */
+export const TICK_MS = 500
 
 /**
  * Time the result remains visible before advancing.
@@ -221,6 +270,62 @@ function clampStake(
   )
 }
 
+/**
+ * Applies one random market step to a price.
+ *
+ * @param {number} price
+ * @param {object} market
+ * @param {number} unit Random value in the range -1 to 1.
+ * @returns {number}
+ */
+function stepPrice(
+  price,
+  market,
+  unit,
+) {
+  return Math.max(
+    0,
+    price *
+      (
+        1 +
+        unit *
+          market.volatility
+      ),
+  )
+}
+
+/**
+ * Builds the price path for a spin: one price per step, each a random
+ * step from the one before, the last being the final price.
+ *
+ * @param {number} startPrice
+ * @param {object} market
+ * @param {number[]} units Random values in the range -1 to 1.
+ * @returns {number[]}
+ */
+function buildPath(
+  startPrice,
+  market,
+  units,
+) {
+  const path = []
+
+  let price = startPrice
+
+  for (const unit of units) {
+    price =
+      stepPrice(
+        price,
+        market,
+        unit,
+      )
+
+    path.push(price)
+  }
+
+  return path
+}
+
 /* -------------------------------------------------------------------------- */
 /* Round settlement                                                           */
 /* -------------------------------------------------------------------------- */
@@ -235,8 +340,8 @@ function clampStake(
  * A loss is capped at the player's remaining balance so the balance can
  * never go negative.
  *
- * The completion bonus is awarded when the player wins Round 3 having
- * already won every earlier round of the run.
+ * The completion bonus is awarded for winning Round 3. A player can only
+ * be on Round 3 after winning Rounds 1 and 2 in a row.
  *
  * @param {object} state
  * @param {boolean} won
@@ -284,20 +389,11 @@ function settleRound(
   }
 
   /**
-   * Completion bonus.
-   *
-   * `completedRounds` counts wins so far in this run and has not yet been
-   * updated for the round being settled, so a clean sweep means two wins
-   * going into a winning Round 3.
+   * Completion bonus: winning the top round of the streak.
    */
-  const wonAllRounds =
-    won &&
-    state.round === TOTAL_ROUNDS &&
-    state.completedRounds ===
-      TOTAL_ROUNDS - 1
-
   const bonus =
-    wonAllRounds
+    won &&
+    state.round === TOTAL_ROUNDS
       ? state.stake *
         BONUS_MULTIPLIER
       : 0
@@ -373,6 +469,10 @@ const initialState = {
   stake:
     START_STAKE,
 
+  /**
+   * The level the player is on. Climbs by one after each win and falls
+   * back to 1 after a loss or after completing the top round.
+   */
   round:
     1,
 
@@ -391,9 +491,6 @@ const initialState = {
   prediction:
     null,
 
-  elapsed:
-    0,
-
   outcome:
     null,
 
@@ -405,22 +502,30 @@ const initialState = {
     null,
 
   /**
+   * The price path of the current spin, and how much of it has been
+   * played so far. Empty outside a spin.
+   */
+  path:
+    [],
+
+  pathIndex:
+    0,
+
+  /**
    * Financial result of the most recently completed round.
    */
   roundResult:
     0,
 
   /**
-   * Net result accumulated during the current three-round game,
-   * including any completion bonus.
+   * Net result accumulated during the current streak, including any
+   * completion bonus. Reset when the streak ends.
    */
   netResult:
     0,
 
   /**
-   * Number of rounds WON in the current three-round game.
-   *
-   * Wins only. For "rounds finished" use the derived `roundsPlayed`.
+   * Wins in the current streak. Reset when the streak ends.
    */
   completedRounds:
     0,
@@ -441,14 +546,13 @@ function reducer(
 
     case 'TICK': {
       /**
-       * The market is frozen while the final number is being revealed or
-       * while the result is displayed.
+       * Ticks only move the market between spins. During a spin the price
+       * follows the spin's own path, and afterwards it is frozen while the
+       * result is displayed.
        */
       if (
-        state.phase ===
-          'revealing' ||
-        state.phase ===
-          'result'
+        state.phase !==
+        'idle'
       ) {
         return state
       }
@@ -459,95 +563,21 @@ function reducer(
         ]
 
       const price =
-        Math.max(
-          0,
-          state.price *
-            (
-              1 +
-              action.unit *
-                market.volatility
-            ),
+        stepPrice(
+          state.price,
+          market,
+          action.unit,
         )
-
-      const direction =
-        price >= state.price
-          ? 'up'
-          : 'down'
-
-      /**
-       * Before a prediction has been made, the market simply moves.
-       */
-      if (
-        state.phase !==
-        'live'
-      ) {
-        return {
-          ...state,
-          price,
-          direction,
-        }
-      }
-
-      const elapsed =
-        state.elapsed +
-        TICK_MS
-
-      const changePct =
-        (
-          price /
-            state.startPrice -
-          1
-        ) * 100
-
-      /**
-       * The round is still active.
-       */
-      if (
-        elapsed <
-        ROUND_MS
-      ) {
-        return {
-          ...state,
-          price,
-          direction,
-          elapsed,
-          changePct,
-        }
-      }
-
-      /* -------------------------------------------------------------------- */
-      /* Round finished                                                       */
-      /* -------------------------------------------------------------------- */
-
-      const won =
-        state.prediction ===
-        'up'
-          ? price >
-            state.startPrice
-          : price <
-            state.startPrice
 
       return {
         ...state,
 
         price,
 
-        direction,
-
-        elapsed:
-          ROUND_MS,
-
-        changePct,
-
-        phase:
-          'revealing',
-
-        pending:
-          settleRound(
-            state,
-            won,
-            changePct,
-          ),
+        direction:
+          price >= state.price
+            ? 'up'
+            : 'down',
       }
     }
 
@@ -561,6 +591,10 @@ function reducer(
        *
        * The stake is NOT removed here.
        * It remains untouched until the round is settled.
+       *
+       * The whole price path for the spin is generated now, and its first
+       * step is applied at once, so the market starts moving with the
+       * reels.
        */
       if (
         state.phase !==
@@ -580,6 +614,22 @@ function reducer(
         return state
       }
 
+      const market =
+        MARKETS_BY_ID[
+          state.marketId
+        ]
+
+      const path =
+        buildPath(
+          state.price,
+          market,
+          action.units ?? [],
+        )
+
+      const first =
+        path[0] ??
+        state.price
+
       return {
         ...state,
 
@@ -592,11 +642,27 @@ function reducer(
         startPrice:
           state.price,
 
-        elapsed:
-          0,
+        price:
+          first,
+
+        direction:
+          first >= state.price
+            ? 'up'
+            : 'down',
 
         changePct:
-          0,
+          (
+            first /
+              state.price -
+            1
+          ) * 100,
+
+        path,
+
+        pathIndex:
+          path.length > 0
+            ? 1
+            : 0,
 
         outcome:
           null,
@@ -606,6 +672,111 @@ function reducer(
 
         roundResult:
           0,
+      }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* Spin path                                                              */
+    /* ---------------------------------------------------------------------- */
+
+    case 'PATH_STEP': {
+      /**
+       * Plays the next price of the spin's path. Runs on a timer started
+       * by the tap and keeps going through the reveal, so the live price
+       * reaches the final price as the reels settle.
+       */
+      if (
+        (
+          state.phase !==
+            'live' &&
+          state.phase !==
+            'revealing'
+        ) ||
+        state.pathIndex >=
+          state.path.length
+      ) {
+        return state
+      }
+
+      const price =
+        state.path[
+          state.pathIndex
+        ]
+
+      return {
+        ...state,
+
+        price,
+
+        direction:
+          price >= state.price
+            ? 'up'
+            : 'down',
+
+        changePct:
+          (
+            price /
+              state.startPrice -
+            1
+          ) * 100,
+
+        pathIndex:
+          state.pathIndex + 1,
+      }
+    }
+
+    /* ---------------------------------------------------------------------- */
+    /* Round end                                                              */
+    /* ---------------------------------------------------------------------- */
+
+    case 'ROUND_END': {
+      /**
+       * Fired by a timer ROUND_MS after the tap, when the reels start to
+       * stop. The final price is the last price of the spin's path. The
+       * result is settled now but hidden until the reels have stopped.
+       */
+      if (
+        state.phase !==
+        'live'
+      ) {
+        return state
+      }
+
+      const finalPrice =
+        state.path[
+          state.path.length - 1
+        ] ?? state.price
+
+      const changePct =
+        (
+          finalPrice /
+            state.startPrice -
+          1
+        ) * 100
+
+      const won =
+        state.prediction ===
+        'up'
+          ? finalPrice >
+            state.startPrice
+          : finalPrice <
+            state.startPrice
+
+      return {
+        ...state,
+
+        phase:
+          'revealing',
+
+        pending: {
+          ...settleRound(
+            state,
+            won,
+            changePct,
+          ),
+
+          finalPrice,
+        },
       }
     }
 
@@ -631,6 +802,20 @@ function reducer(
         phase:
           'result',
 
+        /**
+         * Land the live price exactly on the final price, whatever the
+         * timers did.
+         */
+        price:
+          pending.finalPrice,
+
+        changePct:
+          (
+            pending.finalPrice /
+              state.startPrice -
+            1
+          ) * 100,
+
         balance:
           pending.balance,
 
@@ -652,6 +837,12 @@ function reducer(
 
         pending:
           null,
+
+        path:
+          [],
+
+        pathIndex:
+          0,
       }
     }
 
@@ -660,19 +851,28 @@ function reducer(
     /* ---------------------------------------------------------------------- */
 
     case 'NEXT_ROUND': {
-      const completedFinalRound =
-        state.round ===
-        TOTAL_ROUNDS
-
       /**
-       * The three-round game ends after Round 3.
+       * Rounds are a streak:
        *
-       * We then start a fresh three-round sequence.
+       *   win below the top  -> climb to the next round
+       *   win at the top     -> streak complete, start again at Round 1
+       *   loss               -> streak lost, back to Round 1
+       *
+       * The streak totals are cleared here, not when the result arrives,
+       * so a lost streak can still be read on screen.
        */
+      const won =
+        state.outcome?.won === true
+
+      const climbing =
+        won &&
+        state.round <
+          TOTAL_ROUNDS
+
       const nextRound =
-        completedFinalRound
-          ? 1
-          : state.round + 1
+        climbing
+          ? state.round + 1
+          : 1
 
       return {
         ...state,
@@ -682,9 +882,6 @@ function reducer(
 
         prediction:
           null,
-
-        elapsed:
-          0,
 
         changePct:
           0,
@@ -700,18 +897,15 @@ function reducer(
             nextRound,
           ),
 
-        /**
-         * Start a new financial sequence after Round 3.
-         */
         netResult:
-          completedFinalRound
-            ? 0
-            : state.netResult,
+          climbing
+            ? state.netResult
+            : 0,
 
         completedRounds:
-          completedFinalRound
-            ? 0
-            : state.completedRounds,
+          climbing
+            ? state.completedRounds
+            : 0,
 
         roundResult:
           0,
@@ -848,6 +1042,7 @@ function reducer(
  *   markets: object[],
  *   marketId: string,
  *   price: number,
+ *   resultPrice: number|null,
  *   startPrice: number,
  *   direction: 'up'|'down',
  *   changePct: number,
@@ -857,13 +1052,11 @@ function reducer(
  *   multiplier: number,
  *   phase: string,
  *   prediction: 'up'|'down'|null,
- *   elapsed: number,
  *   outcome: object|null,
  *   roundResult: number,
  *   netResult: number,
  *   completedRounds: number,
  *   roundsPlayed: number,
- *   spinsRemaining: number,
  *   canSelectMarket: boolean,
  *   teasing: boolean,
  *   isBroke: boolean,
@@ -887,7 +1080,7 @@ export function useMarketSimulation() {
   )
 
   /* ------------------------------------------------------------------------ */
-  /* Continuous market simulation                                             */
+  /* Market ticks between spins                                               */
   /* ------------------------------------------------------------------------ */
 
   useEffect(() => {
@@ -905,6 +1098,66 @@ export function useMarketSimulation() {
     return () =>
       clearInterval(id)
   }, [])
+
+  /* ------------------------------------------------------------------------ */
+  /* Live price during a spin                                                 */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * One timer for the whole spin. It depends on `spinning`, not on the
+   * phase, so it keeps its rhythm when the spin moves from 'live' to
+   * 'revealing'.
+   */
+  const spinning =
+    state.phase ===
+      'live' ||
+    state.phase ===
+      'revealing'
+
+  useEffect(() => {
+    if (!spinning) {
+      return undefined
+    }
+
+    const id =
+      setInterval(() => {
+        dispatch({
+          type:
+            'PATH_STEP',
+        })
+      }, PATH_STEP_MS)
+
+    return () =>
+      clearInterval(id)
+  }, [
+    spinning,
+  ])
+
+  /* ------------------------------------------------------------------------ */
+  /* Round end                                                                */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    if (
+      state.phase !==
+      'live'
+    ) {
+      return undefined
+    }
+
+    const id =
+      setTimeout(() => {
+        dispatch({
+          type:
+            'ROUND_END',
+        })
+      }, ROUND_MS)
+
+    return () =>
+      clearTimeout(id)
+  }, [
+    state.phase,
+  ])
 
   /* ------------------------------------------------------------------------ */
   /* Reel reveal                                                              */
@@ -978,7 +1231,10 @@ export function useMarketSimulation() {
   /* ------------------------------------------------------------------------ */
 
   /**
-   * Commits an UP or DOWN prediction and starts the market round.
+   * Commits an UP or DOWN prediction and starts the spin.
+   *
+   * The random numbers for the spin's price path are drawn here, so the
+   * reducer stays pure.
    *
    * @param {'up'|'down'} direction
    */
@@ -989,6 +1245,17 @@ export function useMarketSimulation() {
           type:
             'SPIN',
           direction,
+          units:
+            Array.from(
+              {
+                length:
+                  SPIN_STEPS + 1,
+              },
+              () =>
+                Math.random() *
+                  2 -
+                1,
+            ),
         })
       },
       [],
@@ -1090,31 +1357,29 @@ export function useMarketSimulation() {
       )
 
   /**
-   * Rounds finished in the current three-round sequence, win or lose.
+   * Rounds already climbed in the current streak.
    *
-   * `completedRounds` only counts wins, so it cannot drive progress UI:
-   * after a loss in Round 1 it would still read 0 while Round 2 is current.
-   *
-   * The current round counts as played once its result is on screen.
+   * This is the number of wins in a row, and it is what the round bar and
+   * the bonus table tick off. A lost spin is never ticked.
    */
   const roundsPlayed =
-    state.phase ===
-    'result'
-      ? state.round
-      : state.round - 1
+    state.completedRounds
 
   /**
-   * Rounds the player can still start, for the "Spins Remaining" dots.
-   *
-   * The current round counts as used as soon as a prediction is committed:
-   *
-   *   idle,  round 1 -> 3        live,  round 1 -> 2
-   *   idle,  round 3 -> 1        live,  round 3 -> 0
+   * The final price of the spin, for the reel to land on. Known from the
+   * moment the reels start to stop; before that it is null and the reel
+   * has nothing to show. After the reveal it is simply the market price.
    */
-  const spinsRemaining =
-    TOTAL_ROUNDS -
-    state.round +
-    (isIdle ? 1 : 0)
+  const resultPrice =
+    state.phase ===
+    'revealing'
+      ? state.pending
+          ?.finalPrice ??
+        null
+      : state.phase ===
+          'result'
+        ? state.price
+        : null
 
   return {
     ...state,
@@ -1145,7 +1410,7 @@ export function useMarketSimulation() {
 
     roundsPlayed,
 
-    spinsRemaining,
+    resultPrice,
 
     spin,
 
