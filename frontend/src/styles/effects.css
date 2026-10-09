@@ -3,21 +3,6 @@
  *
  * @description
  * Shared visual effects for the Market Flux mechanical HUD.
- *
- * DESIGN LANGUAGE
- * ---------------------------------------------------------------------------
- * Market Flux uses transparent physical surfaces rather than conventional
- * cards. These effects provide:
- *
- * - subtle cyan atmospheric glow
- * - transparent liquid-glass depth
- * - restrained specular reflections
- * - mechanical inner shadows
- * - selective structural edge lighting
- *
- * Components should provide their own geometry, rails and accent placement.
- * These utilities intentionally avoid creating a complete glowing border
- * around every surface.
  */
 
 /* ---------------------------------------------------------------------------
@@ -33,9 +18,6 @@
 
 /* ---------------------------------------------------------------------------
  * Legacy glass base
- *
- * Kept for compatibility with existing components.
- * New Market Flux surfaces should generally use .market-flux-liquid instead.
  * ------------------------------------------------------------------------ */
 
 .market-flux-glass {
@@ -57,11 +39,6 @@
 
 /* ---------------------------------------------------------------------------
  * Liquid glass
- *
- * Transparent physical surface.
- *
- * The background artwork should remain visible through the component.
- * Avoid making this effect responsible for the component's geometry.
  * ------------------------------------------------------------------------ */
 
 .market-flux-liquid {
@@ -95,8 +72,6 @@
 
 /* ---------------------------------------------------------------------------
  * Clear liquid glass
- *
- * Used when the background artwork should dominate the component.
  * ------------------------------------------------------------------------ */
 
 .market-flux-clear {
@@ -127,8 +102,6 @@
 
 /* ---------------------------------------------------------------------------
  * Specular glass reflection
- *
- * A restrained physical highlight rather than a large glossy gradient.
  * ------------------------------------------------------------------------ */
 
 .market-flux-liquid::after {
@@ -159,8 +132,6 @@
 
 /* ---------------------------------------------------------------------------
  * Mechanical depth
- *
- * Useful on reels, housings and physical controls.
  * ------------------------------------------------------------------------ */
 
 .market-flux-mechanical {
@@ -185,9 +156,6 @@
 
 /* ---------------------------------------------------------------------------
  * Structural cyan accent
- *
- * This is intentionally NOT a complete border.
- * Components can use it for small mechanical edge fragments.
  * ------------------------------------------------------------------------ */
 
 .market-flux-accent {
@@ -198,10 +166,6 @@
 
 /* ---------------------------------------------------------------------------
  * Shiny edge
- *
- * Compatibility utility for components that still require a perimeter.
- * Keep the treatment restrained so it does not turn every component into a
- * neon card.
  * ------------------------------------------------------------------------ */
 
 .market-flux-edge {
