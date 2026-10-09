@@ -3,31 +3,6 @@
  *
  * @description
  * Mechanical 3D liquid-glass result reel for Market Flux.
- *
- * VISUAL DESIGN
- * ---------------------------------------------------------------------------
- * - Wide, recessed black-glass reel
- * - Layered mechanical housing
- * - Metallic bevels and reflective highlights
- * - Selective cyan edge illumination
- * - Cylindrical digit chambers with physical depth
- * - Bright white digits while idle or spinning
- * - Green/red changed digits after the result settles
- *
- * GAMEPLAY
- * ---------------------------------------------------------------------------
- * idle      -> zeroed reel
- * live      -> reels spin immediately
- * revealing -> reels brake sequentially, left to right
- * result    -> final price remains visible
- *
- * API
- * ---------------------------------------------------------------------------
- * value      Final market price
- * decimals   Number of decimal places
- * phase      Current game phase
- * tease      Optional near-miss landing effect
- * startPrice Price at the beginning of the round
  */
 
 import {
@@ -45,7 +20,7 @@ import ReelFrame from './ReelFrame'
 /* -------------------------------------------------------------------------- */
 
 const CELL_HEIGHT = 60
-const DISPLAY_HEIGHT = 76
+const DISPLAY_HEIGHT = 80
 
 const SPIN_SPEED = 19
 const SPIN_SPEED_STEP = 0.7
@@ -74,29 +49,29 @@ const DIGIT_TONES = {
   idle: {
     color: '#EAF8FF',
     shadow: [
-      '0 0 2px rgba(255,255,255,0.95)',
-      '0 0 7px rgba(190,235,255,0.65)',
-      '0 0 15px rgba(90,200,255,0.24)',
+      '0 0 4px rgba(255,255,255,0.95)',
+      '0 0 12px rgba(125,211,252,0.85)',
+      '0 0 25px rgba(0,191,255,0.5)',
     ].join(', '),
   },
 
   up: {
     color: '#39FF88',
     shadow: [
-      '0 0 2px rgba(255,255,255,1)',
-      '0 0 7px rgba(57,255,136,0.95)',
-      '0 0 15px rgba(0,255,102,0.65)',
-      '0 0 25px rgba(0,255,102,0.25)',
+      '0 0 4px rgba(255,255,255,1)',
+      '0 0 12px rgba(57,255,136,0.95)',
+      '0 0 25px rgba(0,255,102,0.65)',
+      '0 0 40px rgba(0,255,102,0.3)',
     ].join(', '),
   },
 
   down: {
     color: '#FF3158',
     shadow: [
-      '0 0 2px rgba(255,255,255,1)',
-      '0 0 7px rgba(255,49,88,0.95)',
-      '0 0 15px rgba(255,23,68,0.65)',
-      '0 0 25px rgba(255,23,68,0.25)',
+      '0 0 4px rgba(255,255,255,1)',
+      '0 0 12px rgba(255,49,88,0.95)',
+      '0 0 25px rgba(255,23,68,0.65)',
+      '0 0 40px rgba(255,23,68,0.3)',
     ].join(', '),
   },
 }
@@ -113,32 +88,18 @@ function isDigit(char) {
   return /^\d$/.test(char)
 }
 
-/**
- * Keep the digits legible on narrow mobile screens.
- *
- * @param {number} digitCount
- * @returns {string}
- */
 function getFontSize(digitCount) {
   if (digitCount >= 7) {
-    return 'clamp(29px, 9.2vw, 43px)'
+    return 'clamp(28px, 8.5vw, 42px)'
   }
 
   if (digitCount === 6) {
-    return 'clamp(33px, 10.2vw, 48px)'
+    return 'clamp(32px, 9.5vw, 46px)'
   }
 
-  return 'clamp(37px, 11.5vw, 54px)'
+  return 'clamp(36px, 11vw, 52px)'
 }
 
-/**
- * Compare numeric digit positions from right to left.
- * The decimal separator does not affect alignment.
- *
- * @param {string} current
- * @param {string} previous
- * @returns {boolean[]}
- */
 function getChangedDigits(current, previous) {
   const currentDigits = current
     .split('')
@@ -166,13 +127,6 @@ function getChangedDigits(current, previous) {
   })
 }
 
-/**
- * Accessible description for the current reel state.
- *
- * @param {string} phase
- * @param {string} formatted
- * @returns {string}
- */
 function getLabel(phase, formatted) {
   if (phase === 'live') {
     return 'Market result reel spinning'
@@ -193,15 +147,6 @@ function getLabel(phase, formatted) {
 /* Main component                                                             */
 /* -------------------------------------------------------------------------- */
 
-/**
- * @param {object} props
- * @param {number} props.value
- * @param {number} [props.decimals=2]
- * @param {'idle'|'live'|'revealing'|'result'} [props.phase='idle']
- * @param {boolean} [props.tease=false]
- * @param {number} [props.startPrice]
- * @returns {JSX.Element}
- */
 function MarketNumberSpinner({
   value,
   decimals = 2,
@@ -211,8 +156,6 @@ function MarketNumberSpinner({
 }) {
   const formatted = formatPrice(value, decimals)
 
-  // The reel retains the market price's character layout,
-  // but shows zeroes before the result is revealed.
   const resting = phase === 'idle' || phase === 'live'
 
   const shown = resting
@@ -243,10 +186,6 @@ function MarketNumberSpinner({
   const handleLastReelComplete = useCallback(() => {
     setSettled(true)
   }, [])
-
-  const isMoving =
-    phase === 'live' ||
-    (phase === 'revealing' && !settled)
 
   const resultVisible =
     phase === 'result' ||
@@ -279,10 +218,10 @@ function MarketNumberSpinner({
     <div
       role="img"
       aria-label={getLabel(phase, formatted)}
-      className="relative w-full px-0 py-1"
+      className="relative w-full px-2 py-2"
     >
       {/* ================================================================ */}
-      {/* OUTER MACHINE HOUSING                                            */}
+      {/* HEAVY SCI-FI CYLINDRICAL MACHINE CASING                           */}
       {/* ================================================================ */}
 
       <div
@@ -290,115 +229,116 @@ function MarketNumberSpinner({
           relative
           mx-auto
           w-full
-          rounded-[17px]
+          rounded-[28px]
           border
-          border-black/90
-          bg-[#03090e]
-          p-[3px]
-          shadow-[0_12px_22px_rgba(0,0,0,0.65),0_4px_0_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-3px_0_rgba(0,0,0,0.95)]
+          border-cyan-400/45
+          bg-[linear-gradient(180deg,#0a1b2a_0%,#02060a_50%,#040d16_100%)]
+          p-[6px]
+          shadow-[0_20px_45px_rgba(0,0,0,0.9),0_0_30px_rgba(0,191,255,0.25),inset_0_2px_4px_rgba(255,255,255,0.4),inset_0_-4px_8px_rgba(0,0,0,0.9)]
         "
       >
-        {/* Polished upper metal bevel */}
+        {/* Left and right heavy mechanical barrel end-caps */}
+        <div
+          aria-hidden="true"
+          className="
+            absolute
+            -left-3
+            top-1/2
+            z-30
+            h-[88%]
+            w-5
+            -translate-y-1/2
+            rounded-l-xl
+            border
+            border-cyan-300/50
+            bg-[linear-gradient(90deg,#041522_0%,#1a4c6e_50%,#020910_100%)]
+            shadow-[0_0_15px_rgba(0,191,255,0.5),inset_1px_0_3px_rgba(255,255,255,0.6)]
+          "
+        >
+          <div className="absolute inset-y-1 left-1.5 w-0.5 bg-cyan-200/40 rounded-full" />
+        </div>
+
+        <div
+          aria-hidden="true"
+          className="
+            absolute
+            -right-3
+            top-1/2
+            z-30
+            h-[88%]
+            w-5
+            -translate-y-1/2
+            rounded-r-xl
+            border
+            border-cyan-300/50
+            bg-[linear-gradient(90deg,#020910_0%,#1a4c6e_50%,#041522_100%)]
+            shadow-[0_0_15px_rgba(0,191,255,0.5),inset_-1px_0_3px_rgba(255,255,255,0.6)]
+          "
+        >
+          <div className="absolute inset-y-1 right-1.5 w-0.5 bg-cyan-200/40 rounded-full" />
+        </div>
+
+        {/* Polished upper metal specular arc */}
         <span
           aria-hidden="true"
           className="
             pointer-events-none
             absolute
-            left-[8%]
-            right-[8%]
+            inset-x-8
             top-0
             z-50
-            h-px
+            h-[2px]
             bg-gradient-to-r
             from-transparent
-            via-white/55
+            via-cyan-200/80
             to-transparent
+            shadow-[0_0_8px_rgba(0,191,255,0.8)]
           "
         />
 
-        {/* Thin cyan reflection across the housing */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[12%]
-            right-[12%]
-            top-[2px]
-            z-50
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-cyan-300/55
-            to-transparent
-            shadow-[0_0_5px_rgba(0,191,255,0.35)]
-          "
-        />
-
-        {/* Deep inset mounting channel */}
+        {/* Deep recessed window channel */}
         <div
           className="
             relative
             overflow-hidden
-            rounded-[12px]
+            rounded-[20px]
             border
-            border-cyan-300/20
-            bg-[#020609]
-            p-[2px]
-            shadow-[inset_0_5px_9px_rgba(0,0,0,0.95),inset_0_-2px_4px_rgba(255,255,255,0.06),0_0_0_1px_rgba(0,0,0,0.9)]
+            border-cyan-400/40
+            bg-black/90
+            p-[3px]
+            shadow-[inset_0_8px_16px_rgba(0,0,0,0.95),inset_0_-4px_8px_rgba(0,191,255,0.15)]
           "
         >
-          {/* Internal glass surface */}
           <div
             className="
               relative
               overflow-hidden
-              rounded-[9px]
+              rounded-[17px]
               border
-              border-white/[0.055]
-              bg-[linear-gradient(180deg,rgba(13,29,38,0.96)_0%,rgba(2,9,14,0.98)_20%,rgba(0,5,9,0.99)_52%,rgba(4,15,21,0.98)_100%)]
-              shadow-[inset_0_1px_0_rgba(255,255,255,0.10),inset_0_-7px_12px_rgba(0,0,0,0.75)]
+              border-white/10
+              bg-[linear-gradient(180deg,rgba(5,15,24,0.95)_0%,rgba(1,4,7,0.99)_50%,rgba(4,15,24,0.95)_100%)]
+              shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]
             "
           >
-            {/* Top glass reflection */}
+            {/* Ambient cyan backlighting glow behind the digits */}
             <span
               aria-hidden="true"
               className="
                 pointer-events-none
                 absolute
-                left-[4%]
-                right-[4%]
-                top-0
-                z-50
-                h-[2px]
-                rounded-full
-                bg-gradient-to-r
-                from-transparent
-                via-white/20
-                to-transparent
-              "
-            />
-
-            {/* Cyan illumination behind the digits */}
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                left-[18%]
-                right-[18%]
+                inset-x-12
                 top-1/2
                 z-0
-                h-10
+                h-12
                 -translate-y-1/2
                 rounded-full
-                bg-cyan-400/[0.045]
-                blur-xl
+                bg-cyan-400/[0.08]
+                blur-2xl
               "
             />
 
             {/* ======================================================== */}
-            {/* REEL FRAME                                                */}
+            {/* REEL FRAME                                               */}
             {/* ======================================================== */}
 
             <ReelFrame
@@ -416,19 +356,18 @@ function MarketNumberSpinner({
                         z-20
                         flex
                         h-full
-                        w-[9px]
+                        w-[12px]
                         shrink-0
                         items-center
                         justify-center
                         font-black
                         leading-none
-                        text-sky-100/75
+                        text-cyan-200
                       "
                       style={{
                         fontSize,
-                        transform: 'translateY(0.3em)',
-                        textShadow:
-                          '0 0 7px rgba(125,211,252,0.35)',
+                        transform: 'translateY(0.2em)',
+                        textShadow: '0 0 10px rgba(0,191,255,0.8)',
                       }}
                     >
                       {char}
@@ -469,11 +408,7 @@ function MarketNumberSpinner({
               })}
             </ReelFrame>
 
-            {/* ======================================================== */}
-            {/* GLASS / CYLINDER OPTICS                                   */}
-            {/* ======================================================== */}
-
-            {/* Darkened edges create a cylindrical lens effect */}
+            {/* Glass optics and strong top/bottom shadows for cylinder depth */}
             <span
               aria-hidden="true"
               className="
@@ -482,13 +417,12 @@ function MarketNumberSpinner({
                 inset-0
                 z-40
                 bg-gradient-to-r
-                from-black/25
+                from-black/50
                 via-transparent
-                to-black/25
+                to-black/50
               "
             />
 
-            {/* Upper lens shadow */}
             <span
               aria-hidden="true"
               className="
@@ -497,15 +431,14 @@ function MarketNumberSpinner({
                 inset-x-0
                 top-0
                 z-40
-                h-[17px]
+                h-[24px]
                 bg-gradient-to-b
-                from-black/45
-                via-black/[0.12]
+                from-black/90
+                via-black/40
                 to-transparent
               "
             />
 
-            {/* Lower lens shadow */}
             <span
               aria-hidden="true"
               className="
@@ -514,121 +447,15 @@ function MarketNumberSpinner({
                 inset-x-0
                 bottom-0
                 z-40
-                h-[17px]
+                h-[24px]
                 bg-gradient-to-t
-                from-black/55
-                via-black/[0.12]
+                from-black/90
+                via-black/40
                 to-transparent
-              "
-            />
-
-            {/* Thin reflection across the reel window */}
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                left-[3%]
-                right-[3%]
-                top-[19%]
-                z-50
-                h-px
-                bg-gradient-to-r
-                from-transparent
-                via-white/[0.10]
-                to-transparent
-              "
-            />
-
-            {/* Cyan-lit inner rails */}
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                bottom-[12%]
-                left-0
-                top-[12%]
-                z-50
-                w-px
-                bg-gradient-to-b
-                from-transparent
-                via-cyan-300/70
-                to-transparent
-                shadow-[0_0_5px_rgba(0,191,255,0.35)]
-              "
-            />
-
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                bottom-[12%]
-                right-0
-                top-[12%]
-                z-50
-                w-px
-                bg-gradient-to-b
-                from-transparent
-                via-cyan-300/50
-                to-transparent
-                shadow-[0_0_5px_rgba(0,191,255,0.25)]
               "
             />
           </div>
         </div>
-
-        {/* Bottom bevel reflection */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            bottom-[2px]
-            left-[14%]
-            right-[14%]
-            z-50
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-cyan-100/20
-            to-transparent
-          "
-        />
-
-        {/* Small mechanical side details */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            left-[1px]
-            top-[36%]
-            z-50
-            h-[28%]
-            w-[2px]
-            rounded-full
-            bg-cyan-300/70
-            shadow-[0_0_6px_rgba(0,191,255,0.55)]
-          "
-        />
-
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            right-[1px]
-            top-[36%]
-            z-50
-            h-[28%]
-            w-[2px]
-            rounded-full
-            bg-cyan-300/60
-            shadow-[0_0_6px_rgba(0,191,255,0.45)]
-          "
-        />
       </div>
     </div>
   )
@@ -638,19 +465,6 @@ function MarketNumberSpinner({
 /* Individual mechanical digit reel                                           */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Each digit runs independently so the reels stop sequentially.
- *
- * @param {object} props
- * @param {number} props.digit
- * @param {number} props.order
- * @param {'rest'|'spin'|'land'} props.mode
- * @param {boolean} props.tease
- * @param {{color:string,shadow:string}} props.tone
- * @param {string} props.fontSize
- * @param {() => void} [props.onComplete]
- * @returns {JSX.Element}
- */
 function DigitReel({
   digit,
   order,
@@ -702,7 +516,6 @@ function DigitReel({
           : 'none'
     }
 
-    // Resting digits snap cleanly into place.
     if (mode === 'rest') {
       positionRef.current = digit
       completedRef.current = false
@@ -710,7 +523,6 @@ function DigitReel({
       return undefined
     }
 
-    // Respect reduced-motion preferences while still completing the result.
     if (reducedMotion) {
       positionRef.current = digit
       draw(digit)
@@ -725,10 +537,6 @@ function DigitReel({
 
     const speed =
       SPIN_SPEED + order * SPIN_SPEED_STEP
-
-    // --------------------------------------------------------------
-    // Free spin
-    // --------------------------------------------------------------
 
     if (mode === 'spin') {
       completedRef.current = false
@@ -767,10 +575,6 @@ function DigitReel({
 
       return () => cancelAnimationFrame(frameId)
     }
-
-    // --------------------------------------------------------------
-    // Sequential braking and landing
-    // --------------------------------------------------------------
 
     completedRef.current = false
 
@@ -899,27 +703,23 @@ function DigitReel({
       "
       style={{ height: DISPLAY_HEIGHT }}
     >
-      {/* Deep sidewalls inside the digit chamber */}
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          inset-y-[3px]
-          inset-x-[1px]
+          inset-y-1
+          inset-x-0
           z-10
-          rounded-[3px]
         "
         style={{
           boxShadow: [
-            'inset 2px 0 4px rgba(0,0,0,0.65)',
-            'inset -2px 0 4px rgba(0,0,0,0.65)',
-            'inset 0 0 5px rgba(0,0,0,0.80)',
+            'inset 3px 0 6px rgba(0,0,0,0.85)',
+            'inset -3px 0 6px rgba(0,0,0,0.85)',
           ].join(', '),
         }}
       />
 
-      {/* Moving digit strip */}
       <span
         ref={stripRef}
         className="
@@ -938,7 +738,6 @@ function DigitReel({
               grid
               place-items-center
               overflow-hidden
-              pb-[1px]
               font-black
               leading-none
               tabular-nums
@@ -952,110 +751,10 @@ function DigitReel({
               transform: 'translateZ(0)',
             }}
           >
-            {/* Soft reflection across each digit cell */}
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                left-[20%]
-                right-[20%]
-                top-[5px]
-                h-px
-                bg-white/[0.11]
-                blur-[0.5px]
-              "
-            />
-
             {number}
           </span>
         ))}
       </span>
-
-      {/* Cylindrical shading */}
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          z-40
-          bg-gradient-to-r
-          from-black/25
-          via-transparent
-          to-black/25
-        "
-      />
-
-      {/* Upper and lower depth shadows */}
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-x-0
-          top-0
-          z-40
-          h-[18px]
-          bg-gradient-to-b
-          from-black/40
-          to-transparent
-        "
-      />
-
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-x-0
-          bottom-0
-          z-40
-          h-[18px]
-          bg-gradient-to-t
-          from-black/50
-          to-transparent
-        "
-      />
-
-      {/* Narrow separator between reel chambers */}
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          bottom-[14%]
-          right-0
-          top-[14%]
-          z-50
-          w-px
-          bg-gradient-to-b
-          from-transparent
-          via-cyan-200/20
-          to-transparent
-        "
-      />
-
-      {/* Selective blue-lit chamber edge */}
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          bottom-[20%]
-          left-0
-          top-[20%]
-          z-50
-          w-px
-          bg-gradient-to-b
-          from-transparent
-          via-cyan-300/55
-          to-transparent
-        "
-        style={{
-          boxShadow: '0 0 5px rgba(0,191,255,0.30)',
-        }}
-      />
     </span>
   )
 }
