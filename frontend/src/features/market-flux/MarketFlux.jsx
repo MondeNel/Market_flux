@@ -3,42 +3,6 @@
  *
  * @description
  * Main Market Flux game screen.
- *
- * The screen is composed as one physical liquid-glass game machine rather
- * than a collection of dashboard cards.
- *
- * PLATFORM VISUAL LANGUAGE
- * ---------------------------------------------------------------------------
- * - dark environmental background remains visible
- * - liquid-glass surfaces
- * - transparent layered construction
- * - mechanical 3D depth
- * - cyan edge illumination
- * - metallic/specular highlights
- * - recessed controls
- * - no flat dashboard cards
- *
- * VISUAL HIERARCHY
- * ---------------------------------------------------------------------------
- *   1. Header / account
- *   2. Market selector
- *   3. Live market signal
- *   4. Mechanical result reel
- *   5. Round + reward progression
- *   6. UP / STAKE / DOWN controls
- *
- * GAME FLOW
- * ---------------------------------------------------------------------------
- *   Round 1 -> ×3
- *   Round 2 -> ×6
- *   Round 3 -> ×8
- *   All three rounds -> ×10 completion bonus
- *
- * GAME LOGIC
- * ---------------------------------------------------------------------------
- * All game rules remain inside useMarketSimulation().
- *
- * Persistent platform navigation is owned by AppShell.
  */
 
 import MarketFluxHeader from './components/MarketFluxHeader'
@@ -77,20 +41,14 @@ function MarketFlux() {
         pb-1
       "
     >
-      {/* ================================================================== */}
-      {/* HEADER                                                             */}
-      {/* ================================================================== */}
-
+      {/* HEADER */}
       <header className="relative z-[60] shrink-0">
         <MarketFluxHeader
           balance={game.balance}
         />
       </header>
 
-      {/* ================================================================== */}
-      {/* MARKET SELECTOR                                                    */}
-      {/* ================================================================== */}
-
+      {/* MARKET SELECTOR */}
       <section
         aria-label="Market selection"
         className="
@@ -109,10 +67,7 @@ function MarketFlux() {
         />
       </section>
 
-      {/* ================================================================== */}
-      {/* MAIN GAME MACHINE                                                  */}
-      {/* ================================================================== */}
-
+      {/* MAIN GAME MACHINE */}
       <main
         aria-label="Market Flux game"
         className="
@@ -125,30 +80,22 @@ function MarketFlux() {
           pt-1
         "
       >
-        {/* ---------------------------------------------------------------- */}
-        {/* Atmospheric machine glow                                        */}
-        {/* ---------------------------------------------------------------- */}
-
         <span
           aria-hidden="true"
           className="
             pointer-events-none
             absolute
             left-1/2
-            top-[11%]
+            top-[15%]
             z-0
-            h-40
-            w-56
+            h-48
+            w-64
             -translate-x-1/2
             rounded-full
-            bg-cyan-400/[0.055]
+            bg-cyan-400/[0.08]
             blur-3xl
           "
         />
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Physical machine body                                            */}
-        {/* ---------------------------------------------------------------- */}
 
         <section
           aria-label="Market Flux machine"
@@ -162,10 +109,7 @@ function MarketFlux() {
             overflow-visible
           "
         >
-          {/* ============================================================= */}
-          {/* UPPER MACHINE                                                 */}
-          {/* ============================================================= */}
-
+          {/* UPPER MACHINE */}
           <div
             className="
               relative
@@ -174,54 +118,32 @@ function MarketFlux() {
               flex-1
               flex-col
               overflow-visible
-              rounded-[25px]
+              rounded-[28px]
               border
-              border-white/[0.075]
-              bg-black/[0.16]
-              shadow-[0_18px_45px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.10),inset_0_-20px_35px_rgba(0,0,0,0.30)]
+              border-cyan-400/30
+              bg-[linear-gradient(180deg,rgba(4,12,20,0.85)_0%,rgba(1,4,8,0.95)_100%)]
+              shadow-[0_20px_50px_rgba(0,0,0,0.7),inset_0_1px_2px_rgba(255,255,255,0.25),inset_0_-20px_40px_rgba(0,0,0,0.8)]
+              backdrop-blur-2xl
             "
           >
-            {/* ========================================================== */}
-            {/* Physical top highlight                                      */}
-            {/* ========================================================== */}
-
             <span
               aria-hidden="true"
               className="
                 pointer-events-none
                 absolute
-                left-[9%]
-                right-[9%]
+                inset-x-8
                 top-0
                 z-50
-                h-px
+                h-[2px]
                 bg-gradient-to-r
                 from-transparent
-                via-cyan-200/45
+                via-cyan-300/60
                 to-transparent
+                shadow-[0_0_8px_rgba(0,191,255,0.8)]
               "
             />
 
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                left-[20%]
-                right-[20%]
-                top-px
-                z-50
-                h-[2px]
-                rounded-full
-                bg-cyan-300/[0.08]
-                blur-[1px]
-              "
-            />
-
-            {/* ========================================================== */}
-            {/* MARKET SIGNAL                                                */}
-            {/* ========================================================== */}
-
+            {/* MARKET SIGNAL ROW */}
             <div
               className="
                 relative
@@ -230,43 +152,41 @@ function MarketFlux() {
                 shrink-0
                 items-center
                 justify-between
-                px-3
-                pt-2
-                pb-1
+                px-4
+                pt-2.5
+                pb-1.5
               "
             >
-              {/* Market name */}
-
               <div
                 className="
                   flex
                   min-w-0
                   items-center
-                  gap-2
+                  gap-2.5
                 "
               >
                 <span
                   className="
                     relative
                     flex
-                    h-6
-                    w-6
+                    h-7
+                    w-7
                     items-center
                     justify-center
                     rounded-full
                     border
-                    border-cyan-300/20
-                    bg-black/50
-                    shadow-[inset_0_1px_1px_rgba(255,255,255,0.14),0_0_10px_rgba(0,191,255,0.10)]
+                    border-cyan-400/40
+                    bg-cyan-950/60
+                    shadow-[inset_0_1px_2px_rgba(255,255,255,0.2),0_0_10px_rgba(0,191,255,0.2)]
                   "
                 >
                   <span
                     className="
-                      h-2
-                      w-2
+                      h-2.5
+                      w-2.5
                       rounded-full
-                      bg-cyan-300
-                      shadow-[0_0_7px_rgba(0,220,255,0.85)]
+                      bg-cyan-400
+                      shadow-[0_0_8px_rgba(0,191,255,1)]
                     "
                   />
                 </span>
@@ -275,11 +195,11 @@ function MarketFlux() {
                   <div
                     className="
                       truncate
-                      text-[9px]
+                      text-[10px]
                       font-black
                       uppercase
-                      tracking-[0.18em]
-                      text-white/80
+                      tracking-[0.2em]
+                      text-white
                     "
                   >
                     {game.market?.name ?? 'Market'}
@@ -287,18 +207,16 @@ function MarketFlux() {
 
                   <div
                     className="
-                      text-[8px]
-                      font-semibold
-                      tracking-[0.08em]
-                      text-white/35
+                      text-[9px]
+                      font-bold
+                      tracking-[0.12em]
+                      text-cyan-400/60
                     "
                   >
                     LIVE MARKET
                   </div>
                 </div>
               </div>
-
-              {/* Live price */}
 
               <div className="min-w-0">
                 <LivePriceRow
@@ -311,10 +229,7 @@ function MarketFlux() {
               </div>
             </div>
 
-            {/* ========================================================== */}
-            {/* RESULT REEL                                                 */}
-            {/* ========================================================== */}
-
+            {/* RESULT REEL */}
             <div
               className="
                 relative
@@ -324,115 +239,15 @@ function MarketFlux() {
                 flex-1
                 items-center
                 justify-center
-                px-1
+                px-2
               "
             >
-              {/* -------------------------------------------------------- */}
-              {/* Outer mechanical rails                                    */}
-              {/* -------------------------------------------------------- */}
-
-              <span
-                aria-hidden="true"
-                className="
-                  pointer-events-none
-                  absolute
-                  left-0
-                  top-1/2
-                  h-[72%]
-                  w-[2px]
-                  -translate-y-1/2
-                  rounded-full
-                  bg-gradient-to-b
-                  from-transparent
-                  via-cyan-300/40
-                  to-transparent
-                  shadow-[0_0_8px_rgba(0,191,255,0.28)]
-                "
-              />
-
-              <span
-                aria-hidden="true"
-                className="
-                  pointer-events-none
-                  absolute
-                  right-0
-                  top-1/2
-                  h-[72%]
-                  w-[2px]
-                  -translate-y-1/2
-                  rounded-full
-                  bg-gradient-to-b
-                  from-transparent
-                  via-cyan-300/30
-                  to-transparent
-                "
-              />
-
-              {/* -------------------------------------------------------- */}
-              {/* Reel mounting glow                                        */}
-              {/* -------------------------------------------------------- */}
-
-              <span
-                aria-hidden="true"
-                className="
-                  pointer-events-none
-                  absolute
-                  left-[7%]
-                  right-[7%]
-                  top-1/2
-                  h-20
-                  -translate-y-1/2
-                  rounded-full
-                  bg-cyan-400/[0.035]
-                  blur-2xl
-                "
-              />
-
               <div
                 className="
                   relative
                   w-full
                 "
               >
-                {/* Mechanical reel top lip */}
-
-                <span
-                  aria-hidden="true"
-                  className="
-                    pointer-events-none
-                    absolute
-                    -top-1
-                    left-[7%]
-                    right-[7%]
-                    z-40
-                    h-[3px]
-                    rounded-full
-                    bg-gradient-to-r
-                    from-transparent
-                    via-cyan-300/55
-                    to-transparent
-                    shadow-[0_0_7px_rgba(0,191,255,0.28)]
-                  "
-                />
-
-                <span
-                  aria-hidden="true"
-                  className="
-                    pointer-events-none
-                    absolute
-                    -bottom-1
-                    left-[10%]
-                    right-[10%]
-                    z-40
-                    h-px
-                    rounded-full
-                    bg-gradient-to-r
-                    from-transparent
-                    via-white/10
-                    to-transparent
-                  "
-                />
-
                 <MarketNumberSpinner
                   value={
                     game.resultPrice ??
@@ -446,17 +261,14 @@ function MarketFlux() {
               </div>
             </div>
 
-            {/* ========================================================== */}
-            {/* STATUS                                                      */}
-            {/* ========================================================== */}
-
+            {/* STATUS LINE */}
             <div
               className="
                 relative
                 z-30
                 shrink-0
-                px-3
-                pb-1
+                px-4
+                pb-2
               "
             >
               <StatusLine
@@ -468,81 +280,32 @@ function MarketFlux() {
                 elapsed={game.elapsed}
               />
             </div>
-
-            {/* ========================================================== */}
-            {/* MACHINE BOTTOM LIGHT                                        */}
-            {/* ========================================================== */}
-
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                bottom-0
-                left-[8%]
-                right-[8%]
-                z-40
-                h-px
-                bg-gradient-to-r
-                from-transparent
-                via-cyan-400/35
-                to-transparent
-              "
-            />
           </div>
 
-          {/* ================================================================= */}
-          {/* ROUND CONTROL DECK                                                */}
-          {/* ================================================================= */}
-
+          {/* ROUND CONTROL DECK */}
           <div
             className="
               relative
               z-30
-              mt-1.5
+              mt-2
               shrink-0
-              rounded-[20px]
+              rounded-[22px]
               border
-              border-white/[0.065]
-              bg-black/[0.18]
-              px-2
-              py-1.5
-              shadow-[0_12px_28px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-10px_20px_rgba(0,0,0,0.22)]
+              border-cyan-400/30
+              bg-[linear-gradient(180deg,rgba(4,12,20,0.8)_0%,rgba(1,4,8,0.92)_100%)]
+              px-3
+              py-2.5
+              shadow-[0_15px_35px_rgba(0,0,0,0.5),inset_0_1px_2px_rgba(255,255,255,0.2),inset_0_-10px_20px_rgba(0,0,0,0.6)]
+              backdrop-blur-xl
             "
           >
-            {/* Deck top reflection */}
-
-            <span
-              aria-hidden="true"
-              className="
-                pointer-events-none
-                absolute
-                left-[12%]
-                right-[12%]
-                top-0
-                h-px
-                bg-gradient-to-r
-                from-transparent
-                via-white/15
-                to-transparent
-              "
-            />
-
-            {/* ------------------------------------------------------------- */}
-            {/* Round information                                             */}
-            {/* ------------------------------------------------------------- */}
-
             <RoundInfoPanel
               round={game.round}
               roundsPlayed={game.roundsPlayed}
               stake={game.stake}
             />
 
-            {/* ------------------------------------------------------------- */}
-            {/* Multiplier progression                                         */}
-            {/* ------------------------------------------------------------- */}
-
-            <div className="mt-1">
+            <div className="mt-2">
               <MultiplierLadder
                 round={game.round}
                 roundsPlayed={game.roundsPlayed}
@@ -554,16 +317,13 @@ function MarketFlux() {
             </div>
           </div>
 
-          {/* ================================================================= */}
-          {/* DECISION DECK                                                     */}
-          {/* ================================================================= */}
-
+          {/* DECISION DECK (UP / STAKE / DOWN) */}
           <section
             aria-label="Predict the market direction"
             className="
               relative
               z-40
-              mt-1.5
+              mt-2
               shrink-0
             "
           >
@@ -573,13 +333,9 @@ function MarketFlux() {
                 grid
                 grid-cols-[1fr_auto_1fr]
                 items-center
-                gap-2
+                gap-2.5
               "
             >
-              {/* =========================================================== */}
-              {/* UP                                                           */}
-              {/* =========================================================== */}
-
               <SwipePanel
                 direction="up"
                 disabled={!game.canSpin}
@@ -594,38 +350,15 @@ function MarketFlux() {
                 onSelect={game.spin}
               />
 
-              {/* =========================================================== */}
-              {/* STAKE                                                        */}
-              {/* =========================================================== */}
-
               <div
                 className="
                   relative
                   flex
-                  min-w-[72px]
+                  min-w-[90px]
                   items-center
                   justify-center
                 "
               >
-                {/* central mechanical mount */}
-
-                <span
-                  aria-hidden="true"
-                  className="
-                    pointer-events-none
-                    absolute
-                    inset-x-1
-                    top-1/2
-                    h-9
-                    -translate-y-1/2
-                    rounded-[12px]
-                    border
-                    border-white/[0.07]
-                    bg-black/[0.28]
-                    shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-5px_10px_rgba(0,0,0,0.30)]
-                  "
-                />
-
                 <StakeControl
                   stake={game.stake}
                   canDecrease={game.canDecrease}
@@ -640,10 +373,6 @@ function MarketFlux() {
                   onRestart={game.reset}
                 />
               </div>
-
-              {/* =========================================================== */}
-              {/* DOWN                                                         */}
-              {/* =========================================================== */}
 
               <SwipePanel
                 direction="down"
