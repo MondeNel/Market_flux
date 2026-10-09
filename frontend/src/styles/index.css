@@ -6,12 +6,6 @@
  * ============================================================================
  *
  * Global rules only.
- *
- * Component-specific visual treatment belongs in:
- *   - src/styles/effects.css
- *   - individual Market Flux components
- *
- * The application background is owned by AppShell.
  */
 
 /* ---------------------------------------------------------------------------
@@ -100,9 +94,6 @@ button,
 
 /* ---------------------------------------------------------------------------
  * Focus
- *
- * Keep keyboard accessibility visible without introducing a permanent
- * component border.
  * ------------------------------------------------------------------------ */
 
 button:focus-visible,
@@ -124,9 +115,6 @@ textarea:focus-visible {
 
 /* ---------------------------------------------------------------------------
  * Scrollbar
- *
- * Keep the browser scrollbar visually quiet so it does not compete with the
- * mechanical HUD.
  * ------------------------------------------------------------------------ */
 
 * {
