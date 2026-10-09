@@ -2,53 +2,36 @@
  * @file src/features/market-flux/components/MarketNumberSpinner.jsx
  *
  * @description
- * Mechanical 3D result reel for Market Flux.
+ * Mechanical 3D liquid-glass result reel for Market Flux.
  *
- * The reel is the visual hero of the game screen.
- *
- * DESIGN
+ * VISUAL DESIGN
  * ---------------------------------------------------------------------------
- * - Physical mechanical reel chambers
- * - Deep black glass housing
- * - Cylindrical lighting and depth
- * - Subtle cyan mechanical edge
- * - White specular reflections
- * - Neon result colouring
- * - No flat dashboard/card treatment
+ * - Wide, recessed black-glass reel
+ * - Layered mechanical housing
+ * - Metallic bevels and reflective highlights
+ * - Selective cyan edge illumination
+ * - Cylindrical digit chambers with physical depth
+ * - Bright white digits while idle or spinning
+ * - Green/red changed digits after the result settles
  *
- * FUNCTION
+ * GAMEPLAY
  * ---------------------------------------------------------------------------
- * idle / live
- *   The reel rests on zeroes in the same shape as the market price.
+ * idle      -> zeroed reel
+ * live      -> reels spin immediately
+ * revealing -> reels brake sequentially, left to right
+ * result    -> final price remains visible
  *
- * revealing
- *   Each digit rolls upward from zero and brakes onto the final price.
- *   Digits reveal from left to right.
- *
- * result
- *   The final price remains on the reel.
- *
- * next round
- *   The reel returns to zero.
- *
- * RESULT COLOUR
+ * API
  * ---------------------------------------------------------------------------
- * While spinning:
- *   All digits remain neutral.
- *
- * Once settled:
- *   final > startPrice -> changed digits glow green
- *   final < startPrice -> changed digits glow red
- *
- * @param {object} props
- * @param {number} props.value
- * @param {number} [props.decimals=2]
- * @param {'idle'|'live'|'revealing'|'result'} [props.phase='idle']
- * @param {boolean} [props.tease=false]
- * @param {number} [props.startPrice]
+ * value      Final market price
+ * decimals   Number of decimal places
+ * phase      Current game phase
+ * tease      Optional near-miss landing effect
+ * startPrice Price at the beginning of the round
  */
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -58,24 +41,25 @@ import { formatPrice } from '../utils/formatMoney'
 import ReelFrame from './ReelFrame'
 
 /* -------------------------------------------------------------------------- */
-/* Mechanical timing                                                          */
+/* Mechanical dimensions                                                      */
 /* -------------------------------------------------------------------------- */
 
 const CELL_HEIGHT = 60
-const DISPLAY_HEIGHT = 84
+const DISPLAY_HEIGHT = 76
 
 const SPIN_SPEED = 19
-const RAMP_MS = 180
-const FIRST_SPIN_MS = 850
-const STAGGER_MS = 110
-const BRAKE_MS = 260
-const SETTLE_MS = 150
+const SPIN_SPEED_STEP = 0.7
+const RAMP_MS = 100
 
+const LAND_STAGGER_MS = 80
+const LAND_BRAKE_MS = 750
+const LAND_MIN_DISTANCE = 3
+
+const SETTLE_MS = 150
 const OVERSHOOT = 0.22
 
-/* -------------------------------------------------------------------------- */
-/* Reel data                                                                  */
-/* -------------------------------------------------------------------------- */
+const TEASE_HOLD_S = 0.15
+const TEASE_CREEP_S = 0.22
 
 const DIGIT_STRIP = Array.from(
   { length: 30 },
@@ -83,36 +67,37 @@ const DIGIT_STRIP = Array.from(
 )
 
 /* -------------------------------------------------------------------------- */
-/* Colour themes                                                              */
+/* Digit appearance                                                           */
 /* -------------------------------------------------------------------------- */
 
 const DIGIT_TONES = {
   idle: {
     color: '#EAF8FF',
-    shadow: `
-      0 0 3px rgba(255,255,255,0.9),
-      0 0 8px rgba(125,211,252,0.42)
-    `,
+    shadow: [
+      '0 0 2px rgba(255,255,255,0.95)',
+      '0 0 7px rgba(190,235,255,0.65)',
+      '0 0 15px rgba(90,200,255,0.24)',
+    ].join(', '),
   },
 
   up: {
     color: '#39FF88',
-    shadow: `
-      0 0 3px rgba(255,255,255,1),
-      0 0 7px rgba(57,255,136,1),
-      0 0 17px rgba(0,255,102,0.9),
-      0 0 28px rgba(0,255,102,0.45)
-    `,
+    shadow: [
+      '0 0 2px rgba(255,255,255,1)',
+      '0 0 7px rgba(57,255,136,0.95)',
+      '0 0 15px rgba(0,255,102,0.65)',
+      '0 0 25px rgba(0,255,102,0.25)',
+    ].join(', '),
   },
 
   down: {
     color: '#FF3158',
-    shadow: `
-      0 0 3px rgba(255,255,255,1),
-      0 0 7px rgba(255,49,88,1),
-      0 0 17px rgba(255,23,68,0.9),
-      0 0 28px rgba(255,23,68,0.45)
-    `,
+    shadow: [
+      '0 0 2px rgba(255,255,255,1)',
+      '0 0 7px rgba(255,49,88,0.95)',
+      '0 0 15px rgba(255,23,68,0.65)',
+      '0 0 25px rgba(255,23,68,0.25)',
+    ].join(', '),
   },
 }
 
@@ -125,32 +110,30 @@ function mod10(value) {
 }
 
 function isDigit(char) {
-  return /\d/.test(char)
+  return /^\d$/.test(char)
 }
 
 /**
- * Scale digit size according to the number of numeric characters.
+ * Keep the digits legible on narrow mobile screens.
  *
  * @param {number} digitCount
  * @returns {string}
  */
 function getFontSize(digitCount) {
   if (digitCount >= 7) {
-    return 'clamp(30px, 9.5vw, 42px)'
+    return 'clamp(29px, 9.2vw, 43px)'
   }
 
   if (digitCount === 6) {
-    return 'clamp(34px, 10.5vw, 48px)'
+    return 'clamp(33px, 10.2vw, 48px)'
   }
 
-  return 'clamp(38px, 12vw, 54px)'
+  return 'clamp(37px, 11.5vw, 54px)'
 }
 
 /**
- * Find which numeric positions changed.
- *
- * Comparison is performed from the right so the decimal separator
- * never changes the positional relationship between digits.
+ * Compare numeric digit positions from right to left.
+ * The decimal separator does not affect alignment.
  *
  * @param {string} current
  * @param {string} previous
@@ -170,9 +153,7 @@ function getChangedDigits(current, previous) {
       currentDigits.length - 1 - index
 
     const previousIndex =
-      previousDigits.length -
-      1 -
-      distanceFromRight
+      previousDigits.length - 1 - distanceFromRight
 
     return (
       digit !==
@@ -186,24 +167,41 @@ function getChangedDigits(current, previous) {
 }
 
 /**
- * Determine whether reduced motion is preferred.
+ * Accessible description for the current reel state.
  *
- * @returns {boolean}
+ * @param {string} phase
+ * @param {string} formatted
+ * @returns {string}
  */
-function prefersReducedMotion() {
-  if (typeof window === 'undefined') {
-    return false
+function getLabel(phase, formatted) {
+  if (phase === 'live') {
+    return 'Market result reel spinning'
   }
 
-  return window.matchMedia(
-    '(prefers-reduced-motion: reduce)',
-  ).matches
+  if (phase === 'revealing') {
+    return 'Market result reel stopping'
+  }
+
+  if (phase === 'result') {
+    return `Market result ${formatted}`
+  }
+
+  return 'Market result reel ready'
 }
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                             */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * @param {object} props
+ * @param {number} props.value
+ * @param {number} [props.decimals=2]
+ * @param {'idle'|'live'|'revealing'|'result'} [props.phase='idle']
+ * @param {boolean} [props.tease=false]
+ * @param {number} [props.startPrice]
+ * @returns {JSX.Element}
+ */
 function MarketNumberSpinner({
   value,
   decimals = 2,
@@ -211,51 +209,48 @@ function MarketNumberSpinner({
   tease = false,
   startPrice,
 }) {
-  const formatted = formatPrice(
-    value,
-    decimals,
-  )
+  const formatted = formatPrice(value, decimals)
 
-  /**
-   * The reel rests on zeroes before reveal.
-   */
-  const resting =
-    phase === 'idle' ||
+  // The reel retains the market price's character layout,
+  // but shows zeroes before the result is revealed.
+  const resting = phase === 'idle' || phase === 'live'
+
+  const shown = resting
+    ? formatted.replace(/\d/g, '0')
+    : formatted
+
+  const mode =
     phase === 'live'
+      ? 'spin'
+      : phase === 'revealing'
+        ? 'land'
+        : 'rest'
 
-  const shown =
-    resting
-      ? formatted.replace(/\d/g, '0')
-      : formatted
+  const [settled, setSettled] = useState(false)
 
-  /* ------------------------------------------------------------------------ */
-  /* Reveal tracking                                                          */
-  /* ------------------------------------------------------------------------ */
+  const previousPhase = useRef(phase)
 
-  const [trackedPhase, setTrackedPhase] =
-    useState(phase)
+  useEffect(() => {
+    if (previousPhase.current !== phase) {
+      previousPhase.current = phase
 
-  const [revealId, setRevealId] =
-    useState(0)
-
-  const [settledId, setSettledId] =
-    useState(0)
-
-  if (phase !== trackedPhase) {
-    setTrackedPhase(phase)
-
-    if (phase === 'revealing') {
-      setRevealId((id) => id + 1)
+      if (phase === 'live' || phase === 'idle') {
+        setSettled(false)
+      }
     }
-  }
+  }, [phase])
 
-  const isSpinning =
-    phase === 'revealing' &&
-    settledId !== revealId
+  const handleLastReelComplete = useCallback(() => {
+    setSettled(true)
+  }, [])
 
-  /* ------------------------------------------------------------------------ */
-  /* Result direction                                                         */
-  /* ------------------------------------------------------------------------ */
+  const isMoving =
+    phase === 'live' ||
+    (phase === 'revealing' && !settled)
+
+  const resultVisible =
+    phase === 'result' ||
+    (phase === 'revealing' && settled)
 
   const direction =
     startPrice === undefined
@@ -266,237 +261,439 @@ function MarketNumberSpinner({
           ? 'down'
           : 'idle'
 
-  /* ------------------------------------------------------------------------ */
-  /* Changed digits                                                          */
-  /* ------------------------------------------------------------------------ */
-
   const changedDigits =
-    !resting &&
-    startPrice !== undefined
+    !resting && startPrice !== undefined
       ? getChangedDigits(
           formatted,
-          formatPrice(
-            startPrice,
-            decimals,
-          ),
+          formatPrice(startPrice, decimals),
         )
       : []
 
-  /* ------------------------------------------------------------------------ */
-  /* Display metrics                                                          */
-  /* ------------------------------------------------------------------------ */
-
   const chars = shown.split('')
-
-  const numericDigitCount =
-    chars.filter(isDigit).length
-
-  const fontSize =
-    getFontSize(numericDigitCount)
+  const numericDigitCount = chars.filter(isDigit).length
+  const fontSize = getFontSize(numericDigitCount)
 
   let digitIndex = -1
-
-  /* ------------------------------------------------------------------------ */
-  /* Render                                                                   */
-  /* ------------------------------------------------------------------------ */
 
   return (
     <div
       role="img"
-      aria-label={
-        resting
-          ? 'Result reel, waiting for the round to finish'
-          : `Round result ${formatted}`
-      }
-      className="
-        relative
-        w-full
-        py-1
-      "
+      aria-label={getLabel(phase, formatted)}
+      className="relative w-full px-0 py-1"
     >
-      <ReelFrame
-        height={DISPLAY_HEIGHT}
-        tease={tease}
+      {/* ================================================================ */}
+      {/* OUTER MACHINE HOUSING                                            */}
+      {/* ================================================================ */}
+
+      <div
+        className="
+          relative
+          mx-auto
+          w-full
+          rounded-[17px]
+          border
+          border-black/90
+          bg-[#03090e]
+          p-[3px]
+          shadow-[0_12px_22px_rgba(0,0,0,0.65),0_4px_0_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-3px_0_rgba(0,0,0,0.95)]
+        "
       >
-        {chars.map((char, index) => {
-          /* ---------------------------------------------------------------- */
-          /* Decimal separator                                                 */
-          /* ---------------------------------------------------------------- */
+        {/* Polished upper metal bevel */}
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            left-[8%]
+            right-[8%]
+            top-0
+            z-50
+            h-px
+            bg-gradient-to-r
+            from-transparent
+            via-white/55
+            to-transparent
+          "
+        />
 
-          if (!isDigit(char)) {
-            return (
-              <span
-                key={`separator-${index}`}
-                aria-hidden="true"
-                className="
-                  relative
-                  z-20
-                  flex
-                  h-full
-                  w-[10px]
-                  shrink-0
-                  items-center
-                  justify-center
-                  font-black
-                  leading-none
-                  text-sky-100/80
-                "
-                style={{
-                  fontSize,
-                  transform: 'translateY(0.3em)',
-                }}
-              >
-                {char}
-              </span>
-            )
-          }
+        {/* Thin cyan reflection across the housing */}
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            left-[12%]
+            right-[12%]
+            top-[2px]
+            z-50
+            h-px
+            bg-gradient-to-r
+            from-transparent
+            via-cyan-300/55
+            to-transparent
+            shadow-[0_0_5px_rgba(0,191,255,0.35)]
+          "
+        />
 
-          digitIndex += 1
-
-          const isLast =
-            digitIndex ===
-            numericDigitCount - 1
-
-          /**
-           * During the actual reveal all digits remain neutral.
-           * Colour is applied only after the final reel settles.
-           */
-          const tone =
-            !isSpinning &&
-            changedDigits[digitIndex]
-              ? direction
-              : 'idle'
-
-          return (
-            <DigitReel
-              key={`digit-${index}`}
-              digit={Number(char)}
-              order={digitIndex}
-              total={numericDigitCount}
-              revealId={revealId}
-              tease={tease && isLast}
-              tone={
-                DIGIT_TONES[tone] ??
-                DIGIT_TONES.idle
-              }
-              fontSize={fontSize}
-              onComplete={
-                isLast
-                  ? () =>
-                      setSettledId(
-                        revealId,
-                      )
-                  : undefined
-              }
+        {/* Deep inset mounting channel */}
+        <div
+          className="
+            relative
+            overflow-hidden
+            rounded-[12px]
+            border
+            border-cyan-300/20
+            bg-[#020609]
+            p-[2px]
+            shadow-[inset_0_5px_9px_rgba(0,0,0,0.95),inset_0_-2px_4px_rgba(255,255,255,0.06),0_0_0_1px_rgba(0,0,0,0.9)]
+          "
+        >
+          {/* Internal glass surface */}
+          <div
+            className="
+              relative
+              overflow-hidden
+              rounded-[9px]
+              border
+              border-white/[0.055]
+              bg-[linear-gradient(180deg,rgba(13,29,38,0.96)_0%,rgba(2,9,14,0.98)_20%,rgba(0,5,9,0.99)_52%,rgba(4,15,21,0.98)_100%)]
+              shadow-[inset_0_1px_0_rgba(255,255,255,0.10),inset_0_-7px_12px_rgba(0,0,0,0.75)]
+            "
+          >
+            {/* Top glass reflection */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                left-[4%]
+                right-[4%]
+                top-0
+                z-50
+                h-[2px]
+                rounded-full
+                bg-gradient-to-r
+                from-transparent
+                via-white/20
+                to-transparent
+              "
             />
-          )
-        })}
-      </ReelFrame>
+
+            {/* Cyan illumination behind the digits */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                left-[18%]
+                right-[18%]
+                top-1/2
+                z-0
+                h-10
+                -translate-y-1/2
+                rounded-full
+                bg-cyan-400/[0.045]
+                blur-xl
+              "
+            />
+
+            {/* ======================================================== */}
+            {/* REEL FRAME                                                */}
+            {/* ======================================================== */}
+
+            <ReelFrame
+              height={DISPLAY_HEIGHT}
+              tease={tease}
+            >
+              {chars.map((char, index) => {
+                if (!isDigit(char)) {
+                  return (
+                    <span
+                      key={`separator-${index}`}
+                      aria-hidden="true"
+                      className="
+                        relative
+                        z-20
+                        flex
+                        h-full
+                        w-[9px]
+                        shrink-0
+                        items-center
+                        justify-center
+                        font-black
+                        leading-none
+                        text-sky-100/75
+                      "
+                      style={{
+                        fontSize,
+                        transform: 'translateY(0.3em)',
+                        textShadow:
+                          '0 0 7px rgba(125,211,252,0.35)',
+                      }}
+                    >
+                      {char}
+                    </span>
+                  )
+                }
+
+                digitIndex += 1
+
+                const isLast =
+                  digitIndex === numericDigitCount - 1
+
+                const digitChanged =
+                  Boolean(changedDigits[digitIndex])
+
+                const tone =
+                  resultVisible &&
+                  digitChanged
+                    ? direction
+                    : 'idle'
+
+                return (
+                  <DigitReel
+                    key={`digit-${index}`}
+                    digit={Number(char)}
+                    order={digitIndex}
+                    mode={mode}
+                    tease={tease && isLast}
+                    tone={DIGIT_TONES[tone] ?? DIGIT_TONES.idle}
+                    fontSize={fontSize}
+                    onComplete={
+                      isLast
+                        ? handleLastReelComplete
+                        : undefined
+                    }
+                  />
+                )
+              })}
+            </ReelFrame>
+
+            {/* ======================================================== */}
+            {/* GLASS / CYLINDER OPTICS                                   */}
+            {/* ======================================================== */}
+
+            {/* Darkened edges create a cylindrical lens effect */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                inset-0
+                z-40
+                bg-gradient-to-r
+                from-black/25
+                via-transparent
+                to-black/25
+              "
+            />
+
+            {/* Upper lens shadow */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                inset-x-0
+                top-0
+                z-40
+                h-[17px]
+                bg-gradient-to-b
+                from-black/45
+                via-black/[0.12]
+                to-transparent
+              "
+            />
+
+            {/* Lower lens shadow */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                inset-x-0
+                bottom-0
+                z-40
+                h-[17px]
+                bg-gradient-to-t
+                from-black/55
+                via-black/[0.12]
+                to-transparent
+              "
+            />
+
+            {/* Thin reflection across the reel window */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                left-[3%]
+                right-[3%]
+                top-[19%]
+                z-50
+                h-px
+                bg-gradient-to-r
+                from-transparent
+                via-white/[0.10]
+                to-transparent
+              "
+            />
+
+            {/* Cyan-lit inner rails */}
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                bottom-[12%]
+                left-0
+                top-[12%]
+                z-50
+                w-px
+                bg-gradient-to-b
+                from-transparent
+                via-cyan-300/70
+                to-transparent
+                shadow-[0_0_5px_rgba(0,191,255,0.35)]
+              "
+            />
+
+            <span
+              aria-hidden="true"
+              className="
+                pointer-events-none
+                absolute
+                bottom-[12%]
+                right-0
+                top-[12%]
+                z-50
+                w-px
+                bg-gradient-to-b
+                from-transparent
+                via-cyan-300/50
+                to-transparent
+                shadow-[0_0_5px_rgba(0,191,255,0.25)]
+              "
+            />
+          </div>
+        </div>
+
+        {/* Bottom bevel reflection */}
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            bottom-[2px]
+            left-[14%]
+            right-[14%]
+            z-50
+            h-px
+            bg-gradient-to-r
+            from-transparent
+            via-cyan-100/20
+            to-transparent
+          "
+        />
+
+        {/* Small mechanical side details */}
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            left-[1px]
+            top-[36%]
+            z-50
+            h-[28%]
+            w-[2px]
+            rounded-full
+            bg-cyan-300/70
+            shadow-[0_0_6px_rgba(0,191,255,0.55)]
+          "
+        />
+
+        <span
+          aria-hidden="true"
+          className="
+            pointer-events-none
+            absolute
+            right-[1px]
+            top-[36%]
+            z-50
+            h-[28%]
+            w-[2px]
+            rounded-full
+            bg-cyan-300/60
+            shadow-[0_0_6px_rgba(0,191,255,0.45)]
+          "
+        />
+      </div>
     </div>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/* Digit reel                                                                 */
+/* Individual mechanical digit reel                                           */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Individual mechanical digit reel.
- *
- * Each reel:
- * - starts at zero
- * - accelerates
- * - spins continuously
- * - brakes
- * - optionally pauses one digit short
- * - creeps into position
- * - overshoots slightly
- * - settles exactly on the target digit
+ * Each digit runs independently so the reels stop sequentially.
  *
  * @param {object} props
  * @param {number} props.digit
  * @param {number} props.order
- * @param {number} props.total
- * @param {number} props.revealId
+ * @param {'rest'|'spin'|'land'} props.mode
  * @param {boolean} props.tease
  * @param {{color:string,shadow:string}} props.tone
  * @param {string} props.fontSize
  * @param {() => void} [props.onComplete]
+ * @returns {JSX.Element}
  */
 function DigitReel({
   digit,
   order,
-  total,
-  revealId,
+  mode,
   tease,
   tone,
   fontSize,
   onComplete,
 }) {
-  const stripRef =
-    useRef(null)
-
-  const positionRef =
-    useRef(digit)
-
-  const completeRef =
-    useRef(onComplete)
-
-  const handledRevealRef =
-    useRef(revealId)
-
-  /* ------------------------------------------------------------------------ */
-  /* Callback reference                                                       */
-  /* ------------------------------------------------------------------------ */
+  const stripRef = useRef(null)
+  const positionRef = useRef(digit)
+  const completeRef = useRef(onComplete)
+  const completedRef = useRef(false)
 
   useEffect(() => {
-    completeRef.current =
-      onComplete
+    completeRef.current = onComplete
   }, [onComplete])
 
-  /* ------------------------------------------------------------------------ */
-  /* Reel animation                                                           */
-  /* ------------------------------------------------------------------------ */
-
   useEffect(() => {
-    const strip =
-      stripRef.current
+    const strip = stripRef.current
 
     if (!strip) {
       return undefined
     }
 
     const reducedMotion =
-      prefersReducedMotion()
+      window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches
 
-    /**
-     * Draw the current reel position.
-     *
-     * The strip contains repeated digits. Keeping the transform
-     * in the middle of the strip gives the reel enough physical
-     * travel to appear continuous.
-     */
-    const draw = (
-      position,
-      speed = 0,
-    ) => {
-      const cell =
-        mod10(position)
+    const draw = (position, speed = 0) => {
+      const cell = mod10(position)
+
+      const y =
+        -(cell + 10) * CELL_HEIGHT +
+        (DISPLAY_HEIGHT - CELL_HEIGHT) / 2
 
       strip.style.transform =
-        `translate3d(
-          0,
-          ${-(cell + 10) * CELL_HEIGHT +
-            (DISPLAY_HEIGHT - CELL_HEIGHT) / 2}px,
-          0
-        )`
+        `translate3d(0, ${y}px, 0)`
 
       const blur =
         speed > 5
-          ? Math.min(
-              2.2,
-              speed / 10,
-            )
+          ? Math.min(1.8, speed / 12)
           : 0
 
       strip.style.filter =
@@ -505,325 +702,189 @@ function DigitReel({
           : 'none'
     }
 
-    const spinRequested =
-      revealId !==
-      handledRevealRef.current
+    // Resting digits snap cleanly into place.
+    if (mode === 'rest') {
+      positionRef.current = digit
+      completedRef.current = false
+      draw(digit)
+      return undefined
+    }
 
-    handledRevealRef.current =
-      revealId
-
-    /* ---------------------------------------------------------------------- */
-    /* Snap state                                                             */
-    /* ---------------------------------------------------------------------- */
-
-    if (
-      !spinRequested ||
-      reducedMotion
-    ) {
-      positionRef.current =
-        digit
-
+    // Respect reduced-motion preferences while still completing the result.
+    if (reducedMotion) {
+      positionRef.current = digit
       draw(digit)
 
-      if (
-        spinRequested &&
-        order === total - 1
-      ) {
+      if (mode === 'land' && !completedRef.current) {
+        completedRef.current = true
         completeRef.current?.()
       }
 
       return undefined
     }
 
-    /* ---------------------------------------------------------------------- */
-    /* Reveal timing                                                          */
-    /* ---------------------------------------------------------------------- */
-
-    const start =
-      positionRef.current
-
-    const startedAt =
-      performance.now()
-
-    const ramp =
-      RAMP_MS / 1000
-
-    const spin =
-      (
-        FIRST_SPIN_MS +
-        order * STAGGER_MS
-      ) / 1000
-
-    const brake =
-      BRAKE_MS / 1000
-
-    const settle =
-      SETTLE_MS / 1000
-
-    const teaseHold =
-      tease
-        ? 0.15
-        : 0
-
-    const teaseCreep =
-      tease
-        ? 0.22
-        : 0
-
-    const ahead =
-      mod10(digit - start)
-
-    const minimumTurns =
-      tease
-        ? 1
-        : 0
-
-    const effective =
-      spin -
-      ramp / 2 +
-      brake / 3
-
-    const turns =
-      Math.max(
-        minimumTurns,
-        Math.round(
-          (
-            SPIN_SPEED *
-            effective -
-            ahead
-          ) / 10,
-        ),
-      )
-
-    const travel =
-      ahead +
-      turns * 10
-
-    const brakeEnd =
-      travel -
-      (tease ? 1 : 0)
-
     const speed =
-      brakeEnd /
-      effective
+      SPIN_SPEED + order * SPIN_SPEED_STEP
 
-    const spinEnd =
-      speed *
-      (spin - ramp / 2)
+    // --------------------------------------------------------------
+    // Free spin
+    // --------------------------------------------------------------
 
-    const brakeDistance =
-      (speed * brake) / 3
+    if (mode === 'spin') {
+      completedRef.current = false
 
-    const brakeAt =
-      spin
+      const start = positionRef.current
+      const startedAt = performance.now()
+      const ramp = RAMP_MS / 1000
 
-    const holdAt =
-      brakeAt +
-      brake
+      let frameId = 0
 
-    const creepAt =
-      holdAt +
-      teaseHold
-
-    const settleAt =
-      creepAt +
-      teaseCreep
-
-    const endAt =
-      settleAt +
-      settle
-
-    let frameId = 0
-
-    /* ---------------------------------------------------------------------- */
-    /* Animation frame                                                        */
-    /* ---------------------------------------------------------------------- */
-
-    const frame = (now) => {
-      const elapsed =
-        Math.max(
+      const spinFrame = (now) => {
+        const elapsed = Math.max(
           0,
           (now - startedAt) / 1000,
         )
 
-      let offset = 0
+        const ramping = elapsed < ramp
+
+        const offset = ramping
+          ? (speed * elapsed * elapsed) / (2 * ramp)
+          : speed * (elapsed - ramp / 2)
+
+        const currentSpeed = ramping
+          ? (speed * elapsed) / ramp
+          : speed
+
+        const position = start + offset
+
+        positionRef.current = position
+        draw(position, currentSpeed)
+
+        frameId = requestAnimationFrame(spinFrame)
+      }
+
+      frameId = requestAnimationFrame(spinFrame)
+
+      return () => cancelAnimationFrame(frameId)
+    }
+
+    // --------------------------------------------------------------
+    // Sequential braking and landing
+    // --------------------------------------------------------------
+
+    completedRef.current = false
+
+    const start = positionRef.current
+    const startedAt = performance.now()
+
+    const brakeAt =
+      (order * LAND_STAGGER_MS) / 1000
+
+    const brakeTime =
+      LAND_BRAKE_MS / 1000
+
+    const teaseSteps = tease ? 1 : 0
+
+    const brakeStart =
+      start + speed * brakeAt
+
+    const minTarget =
+      brakeStart + LAND_MIN_DISTANCE + teaseSteps
+
+    const target =
+      minTarget + mod10(digit - minTarget)
+
+    const brakeTarget =
+      target - teaseSteps
+
+    const distance =
+      brakeTarget - brakeStart
+
+    const exponent = Math.max(
+      1,
+      (speed * brakeTime) / distance,
+    )
+
+    const holdAt = brakeAt + brakeTime
+
+    const creepAt =
+      holdAt + (tease ? TEASE_HOLD_S : 0)
+
+    const settleAt =
+      creepAt + (tease ? TEASE_CREEP_S : 0)
+
+    const settle = SETTLE_MS / 1000
+    const endAt = settleAt + settle
+
+    let frameId = 0
+
+    const landFrame = (now) => {
+      const elapsed = Math.max(
+        0,
+        (now - startedAt) / 1000,
+      )
+
+      let position
       let currentSpeed = 0
 
-      /* -------------------------------------------------------------- */
-      /* Acceleration                                                   */
-      /* -------------------------------------------------------------- */
-
-      if (elapsed < ramp) {
-        offset =
-          (
-            speed *
-            elapsed *
-            elapsed
-          ) /
-          (2 * ramp)
-
-        currentSpeed =
-          (speed * elapsed) /
-          ramp
-      }
-
-      /* -------------------------------------------------------------- */
-      /* Full speed                                                     */
-      /* -------------------------------------------------------------- */
-
-      else if (
-        elapsed < brakeAt
-      ) {
-        offset =
-          speed *
-          (elapsed - ramp / 2)
-
+      if (elapsed < brakeAt) {
+        position = start + speed * elapsed
         currentSpeed = speed
-      }
+      } else if (elapsed < holdAt) {
+        const remaining =
+          1 - (elapsed - brakeAt) / brakeTime
 
-      /* -------------------------------------------------------------- */
-      /* Braking                                                        */
-      /* -------------------------------------------------------------- */
-
-      else if (
-        elapsed < holdAt
-      ) {
-        const progress =
-          (
-            elapsed -
-            brakeAt
-          ) /
-          brake
-
-        offset =
-          spinEnd +
-          brakeDistance *
-          (
-            1 -
-            (1 - progress) ** 3
-          )
+        position =
+          brakeStart +
+          distance * (1 - remaining ** exponent)
 
         currentSpeed =
-          speed *
-          (1 - progress) ** 2
-      }
-
-      /* -------------------------------------------------------------- */
-      /* Near-miss hold                                                 */
-      /* -------------------------------------------------------------- */
-
-      else if (
-        elapsed < creepAt
-      ) {
-        offset = brakeEnd
-      }
-
-      /* -------------------------------------------------------------- */
-      /* Near-miss creep                                                */
-      /* -------------------------------------------------------------- */
-
-      else if (
-        elapsed < settleAt
-      ) {
+          speed * remaining ** (exponent - 1)
+      } else if (elapsed < creepAt) {
+        position = brakeTarget
+      } else if (elapsed < settleAt) {
         const progress =
-          (
-            elapsed -
-            creepAt
-          ) /
-          Math.max(
-            teaseCreep,
-            0.001,
-          )
+          (elapsed - creepAt) / TEASE_CREEP_S
 
         const eased =
           progress < 0.5
             ? 4 * progress ** 3
             : 1 -
-              (
-                (-2 * progress + 2) ** 3
-              ) /
-              2
+              ((-2 * progress + 2) ** 3) / 2
 
-        offset =
-          brakeEnd +
-          (
-            tease
-              ? 1
-              : 0
-          ) *
-          eased
-      }
-
-      /* -------------------------------------------------------------- */
-      /* Final overshoot                                                */
-      /* -------------------------------------------------------------- */
-
-      else if (
-        elapsed < endAt
-      ) {
+        position =
+          brakeTarget + teaseSteps * eased
+      } else if (elapsed < endAt) {
         const progress =
-          (
-            elapsed -
-            settleAt
-          ) /
-          settle
+          (elapsed - settleAt) / settle
 
-        offset =
-          travel +
+        position =
+          target +
           OVERSHOOT *
-          Math.sin(
-            Math.PI *
-            progress,
-          ) *
-          (1 - progress)
-      }
-
-      /* -------------------------------------------------------------- */
-      /* Settled                                                         */
-      /* -------------------------------------------------------------- */
-
-      else {
-        positionRef.current =
-          digit
-
+            Math.sin(Math.PI * progress) *
+            (1 - progress)
+      } else {
+        positionRef.current = digit
         draw(digit)
 
-        completeRef.current?.()
+        if (!completedRef.current) {
+          completedRef.current = true
+          completeRef.current?.()
+        }
 
         return
       }
 
-      const position =
-        start + offset
+      positionRef.current = position
+      draw(position, currentSpeed)
 
-      positionRef.current =
-        mod10(position)
-
-      draw(
-        position,
-        currentSpeed,
-      )
-
-      frameId =
-        requestAnimationFrame(frame)
+      frameId = requestAnimationFrame(landFrame)
     }
 
-    frameId =
-      requestAnimationFrame(frame)
+    frameId = requestAnimationFrame(landFrame)
 
-    return () =>
-      cancelAnimationFrame(frameId)
-  }, [
-    digit,
-    order,
-    total,
-    revealId,
-    tease,
-  ])
-
-  /* ------------------------------------------------------------------------ */
-  /* Reel chamber                                                             */
-  /* ------------------------------------------------------------------------ */
+    return () => cancelAnimationFrame(frameId)
+  }, [mode, digit, order, tease])
 
   return (
     <span
@@ -836,14 +897,9 @@ function DigitReel({
         flex-1
         overflow-hidden
       "
-      style={{
-        height: DISPLAY_HEIGHT,
-      }}
+      style={{ height: DISPLAY_HEIGHT }}
     >
-      {/* ------------------------------------------------------------------ */}
-      {/* Individual reel chamber                                             */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Deep sidewalls inside the digit chamber */}
       <span
         aria-hidden="true"
         className="
@@ -852,42 +908,18 @@ function DigitReel({
           inset-y-[3px]
           inset-x-[1px]
           z-10
-          rounded-[4px]
+          rounded-[3px]
         "
         style={{
-          boxShadow: `
-            inset 2px 0 4px rgba(0,0,0,0.50),
-            inset -2px 0 4px rgba(0,0,0,0.55),
-            inset 0 0 6px rgba(0,0,0,0.85)
-          `,
+          boxShadow: [
+            'inset 2px 0 4px rgba(0,0,0,0.65)',
+            'inset -2px 0 4px rgba(0,0,0,0.65)',
+            'inset 0 0 5px rgba(0,0,0,0.80)',
+          ].join(', '),
         }}
       />
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Reel separator                                                      */}
-      {/* ------------------------------------------------------------------ */}
-
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          bottom-[13%]
-          right-0
-          top-[13%]
-          z-30
-          w-px
-          bg-gradient-to-b
-          from-transparent
-          via-cyan-400/20
-          to-transparent
-        "
-      />
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Repeating digit strip                                                */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Moving digit strip */}
       <span
         ref={stripRef}
         className="
@@ -896,60 +928,51 @@ function DigitReel({
           block
           will-change-transform
         "
-        style={{
-          transformStyle:
-            'preserve-3d',
-        }}
+        style={{ transformStyle: 'preserve-3d' }}
       >
-        {DIGIT_STRIP.map(
-          (number, index) => (
+        {DIGIT_STRIP.map((number, index) => (
+          <span
+            key={index}
+            className="
+              relative
+              grid
+              place-items-center
+              overflow-hidden
+              pb-[1px]
+              font-black
+              leading-none
+              tabular-nums
+              antialiased
+            "
+            style={{
+              height: CELL_HEIGHT,
+              fontSize,
+              color: tone.color,
+              textShadow: tone.shadow,
+              transform: 'translateZ(0)',
+            }}
+          >
+            {/* Soft reflection across each digit cell */}
             <span
-              key={index}
+              aria-hidden="true"
               className="
-                relative
-                grid
-                place-items-center
-                overflow-hidden
-                pb-[1px]
-                font-black
-                leading-none
-                tabular-nums
-                antialiased
+                pointer-events-none
+                absolute
+                left-[20%]
+                right-[20%]
+                top-[5px]
+                h-px
+                bg-white/[0.11]
+                blur-[0.5px]
               "
-              style={{
-                height: CELL_HEIGHT,
-                fontSize,
-                color: tone.color,
-                textShadow: tone.shadow,
-                transform:
-                  'translateZ(0)',
-              }}
-            >
-              {/* Digit glass highlight */}
-              <span
-                aria-hidden="true"
-                className="
-                  pointer-events-none
-                  absolute
-                  left-[18%]
-                  right-[18%]
-                  top-[5px]
-                  h-px
-                  bg-white/10
-                  blur-[0.5px]
-                "
-              />
+            />
 
-              {number}
-            </span>
-          ),
-        )}
+            {number}
+          </span>
+        ))}
       </span>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Cylindrical side lighting                                           */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Cylindrical shading */}
       <span
         aria-hidden="true"
         className="
@@ -958,16 +981,13 @@ function DigitReel({
           inset-0
           z-40
           bg-gradient-to-r
-          from-black/[0.22]
+          from-black/25
           via-transparent
-          to-black/[0.20]
+          to-black/25
         "
       />
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Upper shadow                                                        */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Upper and lower depth shadows */}
       <span
         aria-hidden="true"
         className="
@@ -976,17 +996,12 @@ function DigitReel({
           inset-x-0
           top-0
           z-40
-          h-[22px]
+          h-[18px]
           bg-gradient-to-b
-          from-black/35
-          via-black/[0.08]
+          from-black/40
           to-transparent
         "
       />
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Lower shadow                                                        */}
-      {/* ------------------------------------------------------------------ */}
 
       <span
         aria-hidden="true"
@@ -996,37 +1011,32 @@ function DigitReel({
           inset-x-0
           bottom-0
           z-40
-          h-[22px]
+          h-[18px]
           bg-gradient-to-t
-          from-black/40
-          via-black/[0.08]
+          from-black/50
           to-transparent
         "
       />
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Centre reflection                                                   */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Narrow separator between reel chambers */}
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
-          left-[16%]
-          right-[16%]
-          top-1/2
+          bottom-[14%]
+          right-0
+          top-[14%]
           z-50
-          h-px
-          -translate-y-1/2
-          bg-white/[0.06]
+          w-px
+          bg-gradient-to-b
+          from-transparent
+          via-cyan-200/20
+          to-transparent
         "
       />
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Mechanical cyan edge                                                */}
-      {/* ------------------------------------------------------------------ */}
-
+      {/* Selective blue-lit chamber edge */}
       <span
         aria-hidden="true"
         className="
@@ -1039,12 +1049,11 @@ function DigitReel({
           w-px
           bg-gradient-to-b
           from-transparent
-          via-cyan-400/65
+          via-cyan-300/55
           to-transparent
         "
         style={{
-          boxShadow:
-            '0 0 5px rgba(0,191,255,0.35)',
+          boxShadow: '0 0 5px rgba(0,191,255,0.30)',
         }}
       />
     </span>
