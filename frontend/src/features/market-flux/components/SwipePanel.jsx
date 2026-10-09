@@ -3,69 +3,33 @@
  *
  * @description
  * Compact directional commitment control for Market Flux.
- *
- * The market reel is the hero of the screen. These controls commit the
- * player's directional prediction and sit either side of the SPIN button:
- *
- *     UP   -> predict the market will rise
- *     DOWN -> predict the market will fall
- *
- * The parent owns all game logic. This component only communicates:
- *
- *     onSelect('up')
- *     onSelect('down')
- *
- * LAYOUT
- * ---------------------------------------------------------------------------
- * Arrow stacked above the label, centred. The stacked layout keeps the
- * control narrow enough to share a row with the raised centre button on a
- * 360px screen.
- *
- * STATES
- * ---------------------------------------------------------------------------
- * normal    full brightness, subtle direction-coloured edge light
- * selected  the player's pick: pressed in, fully lit, strong glow
- * dimmed    the other direction while a round is running
- * disabled  locked with no pick (for example when the player is out of
- *           funds): faded
- *
- * `disabled` is a BEHAVIOUR flag only. It does not fade a selected panel.
- * During a round both panels are disabled, and the one the player picked
- * must stay bright so the commitment is clear.
- *
- * Visual language:
- * - dark mechanical housing
- * - liquid-glass surface
- * - green / red directional energy
- * - pressed / selected state
- * - restrained neon edge accents
- * - no swipe tracking (tap only)
  */
 
-/**
- * Direction-specific visual configuration.
- */
 const PALETTES = {
   up: {
     label: 'UP',
     ariaLabel: 'Predict the market will go up',
 
-    accent: '#31ff9a',
+    accent: '#39FF88',
     accentBright: '#a7ffda',
 
-    glow: 'rgba(49,255,154,0.28)',
-    glowStrong: 'rgba(49,255,154,0.68)',
+    glow: 'rgba(57,255,136,0.3)',
+    glowStrong: 'rgba(57,255,136,0.8)',
+    border: 'border-emerald-500/50',
+    bg: 'from-emerald-950/60 via-black/90 to-emerald-950/70',
   },
 
   down: {
     label: 'DOWN',
     ariaLabel: 'Predict the market will go down',
 
-    accent: '#ff403d',
+    accent: '#FF3158',
     accentBright: '#ffaaa5',
 
-    glow: 'rgba(255,64,61,0.28)',
-    glowStrong: 'rgba(255,64,61,0.68)',
+    glow: 'rgba(255,49,88,0.3)',
+    glowStrong: 'rgba(255,49,88,0.8)',
+    border: 'border-rose-500/50',
+    bg: 'from-rose-950/60 via-black/90 to-rose-950/70',
   },
 }
 
@@ -92,14 +56,9 @@ function SwipePanel({
 
   const handleClick = () => {
     if (disabled) return
-
     onSelect(direction)
   }
 
-  /*
-   * Opacity is driven by the pick, not by `disabled`, so the selected
-   * panel stays bright while the round is running.
-   */
   const opacityClass =
     dimmed
       ? 'opacity-25'
@@ -118,7 +77,7 @@ function SwipePanel({
         group
         relative
         flex
-        h-[50px]
+        h-[54px]
         w-full
         min-w-0
         flex-col
@@ -126,13 +85,14 @@ function SwipePanel({
         justify-center
         gap-0.5
         overflow-hidden
-        rounded-[14px]
+        rounded-[18px]
         border
+        bg-gradient-to-b
         outline-none
         select-none
         touch-manipulation
         transition-all
-        duration-150
+        duration-200
         ease-out
         motion-reduce:transition-none
         focus-visible:ring-2
@@ -141,146 +101,31 @@ function SwipePanel({
         disabled:cursor-not-allowed
         ${opacityClass}
         ${selected ? 'translate-y-[1px]' : ''}
+        ${palette.bg}
+        ${
+          selected
+            ? `${palette.border} shadow-[0_0_25px_${palette.glowStrong},inset_0_2px_4px_rgba(255,255,255,0.4),inset_0_-4px_10px_rgba(0,0,0,0.85)]`
+            : 'border-cyan-400/30 shadow-[0_10px_25px_rgba(0,0,0,0.6),inset_0_1px_2px_rgba(255,255,255,0.2),inset_0_-4px_8px_rgba(0,0,0,0.8)]'
+        }
       `}
-      style={{
-        /*
-         * Neutral black structural body.
-         *
-         * The direction colour comes from the lighting rather than
-         * turning the entire control green or red.
-         */
-        background: `
-          linear-gradient(
-            145deg,
-            rgba(24,28,33,0.96),
-            rgba(5,7,10,0.98) 52%,
-            rgba(13,16,20,0.96)
-          )
-        `,
-
-        borderColor: selected
-          ? `${palette.accent}88`
-          : 'rgba(255,255,255,0.075)',
-
-        boxShadow: selected
-          ? `
-              inset 0 1px 0 rgba(255,255,255,0.15),
-              inset 0 -8px 16px rgba(0,0,0,0.58),
-              inset 0 0 18px ${palette.glow},
-              0 0 9px ${palette.glowStrong},
-              0 0 22px ${palette.glow},
-              0 7px 14px rgba(0,0,0,0.72)
-            `
-          : `
-              inset 0 1px 0 rgba(255,255,255,0.11),
-              inset 0 -8px 16px rgba(0,0,0,0.62),
-              0 5px 12px rgba(0,0,0,0.68)
-            `,
-      }}
     >
-      {/* ---------------------------------------------------------------- */}
-      {/* Structural outer edge                                            */}
-      {/* ---------------------------------------------------------------- */}
-
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-          rounded-[14px]
-        "
-        style={{
-          background: `
-            linear-gradient(
-              135deg,
-              rgba(255,255,255,0.11),
-              transparent 22%,
-              transparent 76%,
-              rgba(255,255,255,0.035)
-            )
-          `,
-        }}
-      />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Direction neon edge accents                                      */}
-      {/* ---------------------------------------------------------------- */}
-
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          left-[9%]
-          right-[9%]
-          top-0
-          h-px
-        "
-        style={{
-          background: `
-            linear-gradient(
-              90deg,
-              transparent,
-              ${palette.accent}88 22%,
-              ${palette.accent}44 78%,
-              transparent
-            )
-          `,
-          opacity: selected ? 1 : 0.5,
-          boxShadow: selected
-            ? `0 0 8px ${palette.glowStrong}`
-            : undefined,
-        }}
-      />
-
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          bottom-0
-          left-[16%]
-          right-[16%]
-          h-px
-        "
-        style={{
-          background: `
-            linear-gradient(
-              90deg,
-              transparent,
-              ${palette.accent}55,
-              transparent
-            )
-          `,
-          opacity: selected ? 0.9 : 0.35,
-        }}
-      />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Glass reflection                                                 */}
-      {/* ---------------------------------------------------------------- */}
-
+      {/* Top glossy reflection line */}
       <span
         aria-hidden="true"
         className="
           pointer-events-none
           absolute
           inset-x-4
-          top-[1px]
-          h-[12px]
-          rounded-full
-          bg-gradient-to-b
-          from-white/[0.12]
+          top-0
+          h-[1px]
+          bg-gradient-to-r
+          from-transparent
+          via-white/30
           to-transparent
-          opacity-70
         "
       />
 
-      {/* ---------------------------------------------------------------- */}
-      {/* Direction atmosphere                                             */}
-      {/* ---------------------------------------------------------------- */}
-
+      {/* Direction glow atmosphere */}
       <span
         aria-hidden="true"
         className="
@@ -288,25 +133,22 @@ function SwipePanel({
           absolute
           left-1/2
           top-1/2
-          h-10
-          w-20
+          h-8
+          w-16
           -translate-x-1/2
           -translate-y-1/2
           rounded-full
           blur-xl
           transition-opacity
-          duration-150
+          duration-200
         "
         style={{
           background: palette.glow,
-          opacity: selected ? 0.9 : 0.2,
+          opacity: selected ? 1 : 0.25,
         }}
       />
 
-      {/* ---------------------------------------------------------------- */}
-      {/* Direction arrow                                                  */}
-      {/* ---------------------------------------------------------------- */}
-
+      {/* Direction Arrow */}
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
@@ -317,14 +159,11 @@ function SwipePanel({
           w-5
           transition-transform
           duration-150
-          group-hover:scale-105
+          group-hover:scale-110
           group-active:scale-95
         "
         style={{
-          filter: `
-            drop-shadow(0 0 4px ${palette.glowStrong})
-            drop-shadow(0 0 8px ${palette.glow})
-          `,
+          filter: `drop-shadow(0 0 6px ${palette.glowStrong})`,
         }}
       >
         {isUp ? (
@@ -332,7 +171,7 @@ function SwipePanel({
             d="M12 19V5M6 11l6-6 6 6"
             fill="none"
             stroke={palette.accentBright}
-            strokeWidth="2.7"
+            strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -341,62 +180,33 @@ function SwipePanel({
             d="M12 5v14M6 13l6 6 6-6"
             fill="none"
             stroke={palette.accentBright}
-            strokeWidth="2.7"
+            strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
         )}
       </svg>
 
-      {/* ---------------------------------------------------------------- */}
-      {/* Label                                                             */}
-      {/* ---------------------------------------------------------------- */}
-
+      {/* Label */}
       <span
         className="
           relative
           z-10
-          text-[14px]
+          text-[13px]
           font-black
           uppercase
           leading-none
-          tracking-[0.14em]
+          tracking-[0.18em]
           text-white
         "
         style={{
           textShadow: selected
-            ? `0 0 9px ${palette.glowStrong}`
-            : '0 1px 2px rgba(0,0,0,0.8)',
+            ? `0 0 10px ${palette.glowStrong}`
+            : '0 1px 3px rgba(0,0,0,0.8)',
         }}
       >
         {palette.label}
       </span>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Bottom mechanical reflection                                     */}
-      {/* ---------------------------------------------------------------- */}
-
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          bottom-[3px]
-          left-[18%]
-          right-[18%]
-          h-px
-        "
-        style={{
-          background: `
-            linear-gradient(
-              90deg,
-              transparent,
-              rgba(255,255,255,0.12),
-              transparent
-            )
-          `,
-        }}
-      />
     </button>
   )
 }
