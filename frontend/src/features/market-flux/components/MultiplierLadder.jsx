@@ -4,42 +4,9 @@
  * @description
  * Bonus panel for Market Flux: the per-round multiplier table and the
  * completion bonus.
- *
- * LAYOUT
- * ---------------------------------------------------------------------------
- *   ┌────────────[ Bonus ×10 ]────────────┐
- *   │  ┌──────────────────────┐ ┌────────┐ │
- *   │  │ Round 3  →  ×8       │ │Win all 3│ │
- *   │  │ Round 2  →  ×6       │ │  +R100  │ │
- *   │  │ Round 1  →  ×3  R30  │ │  bonus  │ │
- *   │  └──────────────────────┘ └────────┘ │
- *   └──────────────────────────────────────┘
- *
- * - Best payout first, as in the layout sketch.
- * - The current round is highlighted and also shows the amount at stake
- *   (stake × multiplier). A win adds it and a loss removes it.
- * - Rounds already played this run are dimmed with a tick, won or lost.
- * - The "×10" in the title is the completion bonus: winning all three
- *   rounds pays stake × 10 on top of the Round 3 win. The block on the
- *   right shows the amount for the current stake. Once a round has been
- *   lost the bonus is out of reach for that run, and the block dims.
- *
- * The rows read from ROUND_CONFIG and the bonus from BONUS_MULTIPLIER, so
- * changing either in the simulation hook updates this panel. A bonus
- * multiplier of 0 hides the bonus entirely.
- *
- * "Round N" is written out in full rather than "R N", because R also means
- * rand and "R3 → ×8" next to "R30" is easy to misread.
- *
- * LAYOUT OWNERSHIP
- * ---------------------------------------------------------------------------
- * No landmark and no horizontal padding. The wrapper in MarketFlux.jsx owns
- * both.
- *
- * Presentational only; all state comes from the simulation hook.
  */
 
-import { ArrowRight, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 
 import {
   BONUS_MULTIPLIER,
@@ -47,41 +14,14 @@ import {
 } from '../hooks/useMarketSimulation'
 import { formatMoney } from '../utils/formatMoney'
 
-/**
- * Highest payout first.
- */
-const ROWS = [...ROUND_CONFIG].reverse()
-
 const HAS_BONUS = BONUS_MULTIPLIER > 0
-
-/* -------------------------------------------------------------------------- */
-/* Row styling                                                                */
-/* -------------------------------------------------------------------------- */
-
-const ROW_STATES = {
-  current:
-    'border-cyan-300/55 bg-cyan-400/[0.14] text-white shadow-[0_0_10px_rgba(40,200,255,0.25)]',
-
-  played:
-    'border-transparent text-white/35',
-
-  upcoming:
-    'border-transparent text-white/70',
-}
-
-/* -------------------------------------------------------------------------- */
-/* Main component                                                             */
-/* -------------------------------------------------------------------------- */
 
 /**
  * @param {object} props
  * @param {number} props.round Current round, 1-based.
- * @param {number} [props.roundsPlayed] Rounds finished in this run, win or
- *   lose. Defaults to `round - 1`.
- * @param {number} [props.completedRounds] Rounds WON in this run. When
- *   given, the bonus dims once a round has been lost.
- * @param {number} [props.stake] Current stake. When given, the current row
- *   shows the amount at stake and the bonus block shows its amount.
+ * @param {number} [props.roundsPlayed] Rounds finished in this run, win or lose.
+ * @param {number} [props.completedRounds] Rounds WON in this run.
+ * @param {number} [props.stake] Current stake.
  * @returns {JSX.Element}
  */
 function MultiplierLadder({
@@ -90,12 +30,8 @@ function MultiplierLadder({
   completedRounds,
   stake,
 }) {
-  const played =
-    roundsPlayed ?? round - 1
+  const played = roundsPlayed ?? round - 1
 
-  /**
-   * The bonus needs every finished round to have been won.
-   */
   const bonusAlive =
     completedRounds === undefined ||
     completedRounds >= played
@@ -113,27 +49,30 @@ function MultiplierLadder({
           ? `Round multipliers. Win all three rounds for a ×${BONUS_MULTIPLIER} bonus.`
           : 'Round multipliers'
       }
-      className="
-        relative
-        pt-2.5
-      "
+      className="relative pt-3"
     >
       <div
         className="
-          market-flux-mechanical
           relative
-          rounded-[14px]
+          mx-auto
+          w-full
+          max-w-[440px]
+          rounded-[18px]
           border
-          border-cyan-300/25
-          bg-black/45
-          px-2.5
-          pb-2.5
+          border-cyan-400/40
+          bg-gradient-to-b
+          from-cyan-950/60
+          via-black/85
+          to-cyan-950/70
+          px-3
+          pb-3
           pt-4
+          shadow-[0_15px_35px_rgba(0,0,0,0.8),0_0_20px_rgba(0,191,255,0.2),inset_0_1px_1px_rgba(255,255,255,0.3)]
+          backdrop-blur-xl
         "
       >
-        {/* Title tab on the top edge */}
-
-        <p
+        {/* Top title tab matching reference image */}
+        <div
           className="
             absolute
             left-1/2
@@ -143,313 +82,163 @@ function MultiplierLadder({
             whitespace-nowrap
             rounded-full
             border
-            border-cyan-300/30
+            border-cyan-400/40
             bg-[#04101a]
-            px-3
-            py-px
+            px-4
+            py-0.5
             text-[10px]
-            font-bold
+            font-black
             uppercase
-            tracking-[0.3em]
+            tracking-[0.25em]
             text-cyan-200
+            shadow-[0_0_10px_rgba(0,191,255,0.3)]
           "
         >
-          Bonus
-
+          Bonus{' '}
           {HAS_BONUS && (
-            <span
-              className="
-                ml-1
-                inline-block
-                -translate-y-[3px]
-                text-[10px]
-                font-black
-                tracking-normal
-                text-cyan-100
-              "
-            >
-              ×{BONUS_MULTIPLIER}
-            </span>
+            <span className="text-cyan-400">×{BONUS_MULTIPLIER}</span>
           )}
-        </p>
+        </div>
 
-        <div
-          className={`
-            grid
-            items-stretch
-            gap-2.5
-            ${
-              HAS_BONUS
-                ? 'grid-cols-[1fr_auto]'
-                : 'grid-cols-1'
-            }
-          `}
-        >
-          {/* ============================================================ */}
-          {/* Payout table                                                  */}
-          {/* ============================================================ */}
+        {/* Horizontal Multiplier Chain */}
+        <div className="flex items-center justify-between gap-1.5 pt-1">
+          {ROUND_CONFIG.map((item, index) => {
+            const isCurrent = item.round === round
+            const isPlayed = item.round <= played
+            const isUpcoming = item.round > played
 
-          <ul
-            className="
-              flex
-              flex-col
-              gap-0.5
-              rounded-[10px]
-              border
-              border-white/10
-              bg-black/40
-              p-1
-            "
-          >
-            {ROWS.map((item) => {
-              const current =
-                item.round === round
+            const currentAmount =
+              isCurrent && stake !== undefined
+                ? stake * item.multiplier
+                : null
 
-              const state =
-                current
-                  ? 'current'
-                  : item.round <= played
-                    ? 'played'
-                    : 'upcoming'
+            return (
+              <div key={item.round} className="flex items-center gap-1.5 flex-1">
+                <div
+                  className={`
+                    relative
+                    flex
+                    flex-1
+                    flex-col
+                    items-center
+                    rounded-xl
+                    border
+                    p-1.5
+                    text-center
+                    transition-all
+                    ${
+                      isCurrent
+                        ? 'border-cyan-400/60 bg-cyan-950/70 shadow-[0_0_15px_rgba(0,191,255,0.35),inset_0_1px_1px_rgba(255,255,255,0.3)]'
+                        : isPlayed
+                          ? 'border-white/10 bg-black/40 opacity-50'
+                          : 'border-cyan-400/20 bg-black/50'
+                    }
+                  `}
+                >
+                  {/* Round Node Badge */}
+                  <div
+                    className={`
+                      relative
+                      grid
+                      h-8
+                      w-8
+                      place-items-center
+                      rounded-full
+                      border
+                      font-black
+                      text-xs
+                      shadow-md
+                      ${
+                        isCurrent
+                          ? 'border-cyan-300 bg-cyan-400/20 text-cyan-200 shadow-[0_0_10px_rgba(0,191,255,0.8)]'
+                          : isPlayed
+                            ? 'border-white/20 bg-white/10 text-white/60'
+                            : 'border-cyan-400/30 bg-cyan-950/40 text-cyan-300'
+                      }
+                    `}
+                  >
+                    {isPlayed ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400" strokeWidth={3} />
+                    ) : (
+                      `×${item.multiplier}`
+                    )}
+                  </div>
 
-              return (
-                <PayoutRow
-                  key={item.round}
-                  round={item.round}
-                  multiplier={item.multiplier}
-                  state={state}
-                  amount={
-                    current &&
-                    stake !== undefined
-                      ? stake * item.multiplier
-                      : null
-                  }
-                />
-              )
-            })}
-          </ul>
+                  <span className="mt-1 text-[9px] font-black uppercase tracking-wider text-white/70">
+                    Round {item.round}
+                  </span>
 
-          {/* ============================================================ */}
-          {/* Completion bonus                                              */}
-          {/* ============================================================ */}
+                  <span className="text-[9px] font-bold tracking-tight text-cyan-300/80">
+                    {currentAmount !== null ? formatMoney(currentAmount) : `×${item.multiplier}`}
+                  </span>
+                </div>
 
+                {index < ROUND_CONFIG.length - 1 && (
+                  <span className="text-cyan-400/40 text-xs font-black">→</span>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Bonus Node */}
           {HAS_BONUS && (
-            <BonusBadge
-              amount={bonusAmount}
-              alive={bonusAlive}
-            />
+            <>
+              <span className="text-cyan-400/40 text-xs font-black">→</span>
+              <div
+                className={`
+                  relative
+                  flex
+                  flex-1
+                  flex-col
+                  items-center
+                  rounded-xl
+                  border
+                  p-1.5
+                  text-center
+                  transition-all
+                  ${
+                    bonusAlive
+                      ? 'border-amber-400/60 bg-amber-950/40 shadow-[0_0_15px_rgba(245,158,11,0.3),inset_0_1px_1px_rgba(255,255,255,0.3)]'
+                      : 'border-white/10 bg-black/40 opacity-40'
+                  }
+                `}
+              >
+                <div
+                  className={`
+                    relative
+                    grid
+                    h-8
+                    w-8
+                    place-items-center
+                    rounded-full
+                    border
+                    font-black
+                    text-xs
+                    shadow-md
+                    ${
+                      bonusAlive
+                        ? 'border-amber-300 bg-amber-400/30 text-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.8)]'
+                        : 'border-white/20 bg-white/10 text-white/50'
+                    }
+                  `}
+                >
+                  ★
+                </div>
+
+                <span className="mt-1 text-[9px] font-black uppercase tracking-wider text-amber-200/90">
+                  Bonus
+                </span>
+
+                <span className="text-[9px] font-bold tracking-tight text-amber-300">
+                  {bonusAmount === null
+                    ? `×${BONUS_MULTIPLIER}`
+                    : formatMoney(bonusAmount, { sign: true })}
+                </span>
+              </div>
+            </>
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Payout row                                                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * @param {object} props
- * @param {number} props.round
- * @param {number} props.multiplier
- * @param {'current'|'played'|'upcoming'} props.state
- * @param {number|null} props.amount Amount at stake (current row only).
- * @returns {JSX.Element}
- */
-function PayoutRow({
-  round,
-  multiplier,
-  state,
-  amount,
-}) {
-  const current =
-    state === 'current'
-
-  return (
-    <li
-      aria-current={
-        current
-          ? 'step'
-          : undefined
-      }
-      className={`
-        flex
-        h-[22px]
-        items-center
-        gap-1.5
-        rounded-[7px]
-        border
-        px-1.5
-        transition-colors
-        duration-300
-        ${ROW_STATES[state]}
-      `}
-    >
-      {/* Played tick (the slot is always reserved so rows line up) */}
-
-      <span
-        aria-hidden="true"
-        className="
-          grid
-          w-3
-          shrink-0
-          place-items-center
-        "
-      >
-        {state === 'played' && (
-          <Check
-            className="
-              h-3
-              w-3
-              text-emerald-300/70
-            "
-            strokeWidth={3}
-          />
-        )}
-      </span>
-
-      <span
-        className="
-          min-w-0
-          flex-1
-          truncate
-          text-[11px]
-          font-bold
-        "
-      >
-        Round {round}
-      </span>
-
-      <ArrowRight
-        aria-hidden="true"
-        className="
-          h-3
-          w-3
-          shrink-0
-          text-cyan-300/70
-        "
-        strokeWidth={2.5}
-      />
-
-      <span
-        className={`
-          w-6
-          shrink-0
-          text-right
-          text-[13px]
-          font-black
-          tabular-nums
-          ${
-            current
-              ? 'text-cyan-200 drop-shadow-[0_0_6px_rgba(80,220,255,0.6)]'
-              : ''
-          }
-        `}
-      >
-        ×{multiplier}
-      </span>
-
-      {/* Amount column (reserved on every row so the multipliers align) */}
-
-      <span
-        className="
-          w-[44px]
-          shrink-0
-          text-right
-          text-[10px]
-          font-bold
-          tabular-nums
-          text-cyan-200/80
-        "
-      >
-        {amount !== null &&
-          formatMoney(amount)}
-      </span>
-    </li>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Completion bonus                                                           */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The prize for winning all three rounds.
- *
- * @param {object} props
- * @param {number|null} props.amount Bonus for the current stake, or null
- *   when no stake is known (the multiplier is shown instead).
- * @param {boolean} props.alive False once a round has been lost this run.
- * @returns {JSX.Element}
- */
-function BonusBadge({
-  amount,
-  alive,
-}) {
-  return (
-    <div
-      className={`
-        flex
-        w-[76px]
-        flex-col
-        items-center
-        justify-center
-        gap-0.5
-        rounded-[10px]
-        border
-        px-1
-        py-1.5
-        text-center
-        transition-[opacity,background-color,border-color]
-        duration-300
-        ${
-          alive
-            ? 'border-cyan-300/35 bg-cyan-400/[0.08]'
-            : 'border-white/10 bg-white/[0.02] opacity-45'
-        }
-      `}
-    >
-      <span
-        className="
-          text-[10px]
-          font-semibold
-          leading-tight
-          text-white/60
-        "
-      >
-        Win all 3
-      </span>
-
-      <span
-        className={`
-          whitespace-nowrap
-          text-[15px]
-          font-black
-          leading-none
-          tabular-nums
-          ${
-            alive
-              ? 'text-cyan-200 drop-shadow-[0_0_6px_rgba(80,220,255,0.6)]'
-              : 'text-white/50'
-          }
-        `}
-      >
-        {amount === null
-          ? `×${BONUS_MULTIPLIER}`
-          : formatMoney(amount, { sign: true })}
-      </span>
-
-      <span
-        className="
-          text-[10px]
-          font-semibold
-          leading-tight
-          text-white/45
-        "
-      >
-        {alive ? 'bonus' : 'missed'}
-      </span>
     </div>
   )
 }
