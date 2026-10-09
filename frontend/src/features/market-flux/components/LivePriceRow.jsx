@@ -3,40 +3,6 @@
  *
  * @description
  * Compact live-market strip displayed beneath the main Market Flux reel.
- *
- * VISUAL MODEL
- * ---------------------------------------------------------------------------
- * The row behaves like a live trading-terminal price display:
- *
- *   Bitcoin     [ 8 ][ 6 ][ 6 ][ 4 ][ 1 ][ 9 ][ 1 ]     ● LIVE
- *
- * Every incoming market tick is treated as a real price update.
- *
- * - Changed digits receive a short mechanical update animation.
- * - Upward ticks use neon green.
- * - Downward ticks use neon red.
- * - Unchanged digits remain visually stable.
- * - A direction reversal produces a slightly stronger row pulse.
- * - The physical digit cells retain the Market Flux 3D / glass language.
- *
- * LIVE / FINAL
- * ---------------------------------------------------------------------------
- * The market is considered live during idle and live phases.
- *
- * During revealing/result phases:
- * - the market display becomes neutral
- * - update animation stops
- * - the marker changes from LIVE to FINAL
- *
- * API
- * ---------------------------------------------------------------------------
- * Existing public props are intentionally preserved:
- *
- *   price
- *   decimals
- *   direction
- *   marketName
- *   phase
  */
 
 import {
@@ -55,28 +21,28 @@ import { formatPrice } from '../utils/formatMoney'
 const TONES = {
   up: {
     color: '#39FF88',
-    glow: '0 0 7px rgba(57,255,136,0.62)',
-    cellGlow: 'rgba(57,255,136,0.10)',
+    glow: '0 0 8px rgba(57,255,136,0.8)',
+    cellGlow: 'rgba(57,255,136,0.12)',
   },
 
   down: {
     color: '#FF3158',
-    glow: '0 0 7px rgba(255,49,88,0.62)',
-    cellGlow: 'rgba(255,49,88,0.10)',
+    glow: '0 0 8px rgba(255,49,88,0.8)',
+    cellGlow: 'rgba(255,49,88,0.12)',
   },
 
   closed: {
-    color: 'rgba(234,248,255,0.68)',
+    color: 'rgba(234,248,255,0.85)',
     glow: 'none',
-    cellGlow: 'rgba(255,255,255,0.025)',
+    cellGlow: 'rgba(255,255,255,0.03)',
   },
 }
 
 const TICK_ANIMATION = {
   initial: {
-    y: 5,
-    opacity: 0.35,
-    scale: 0.94,
+    y: 4,
+    opacity: 0.4,
+    scale: 0.95,
   },
 
   animate: {
@@ -109,15 +75,6 @@ const REVERSAL_ANIMATION = {
   },
 }
 
-/**
- * @param {object} props
- * @param {number} props.price Live market price.
- * @param {number} [props.decimals=2] Decimal precision.
- * @param {'up'|'down'} [props.direction='up'] Latest market direction.
- * @param {string} props.marketName Market name.
- * @param {'idle'|'live'|'revealing'|'result'} [props.phase='idle']
- * @returns {JSX.Element}
- */
 function LivePriceRow({
   price,
   decimals = 2,
@@ -125,377 +82,244 @@ function LivePriceRow({
   marketName,
   phase = 'idle',
 }) {
-  const reducedMotion =
-    useReducedMotion()
+  const reducedMotion = useReducedMotion()
 
-  const live =
-    phase === 'idle' ||
-    phase === 'live'
+  const live = phase !== 'result'
 
-  const formatted =
-    formatPrice(
-      price,
-      decimals,
-    )
+  const formatted = formatPrice(price, decimals)
 
-  /**
-   * Keep the previous formatted value and direction so we can determine
-   * exactly which characters changed on the latest market tick.
-   *
-   * This deliberately lives in component state rather than using an effect.
-   * The incoming price is the source of truth and the next render immediately
-   * derives the tick metadata from it.
-   */
-  const [previous, setPrevious] =
-    useState({
-      value: formatted,
-      direction,
-      tick: 0,
-      reversal: false,
-    })
+  const [previous, setPrevious] = useState({
+    value: formatted,
+    direction,
+    tick: 0,
+    reversal: false,
+  })
 
   if (previous.value !== formatted) {
     setPrevious({
       value: formatted,
       direction,
       tick: previous.tick + 1,
-      reversal:
-        direction !== previous.direction,
+      reversal: direction !== previous.direction,
     })
   }
 
-  const previousValue =
-    previous.value
+  const previousValue = previous.value
 
-  /**
-   * Determine which display characters changed during this tick.
-   *
-   * We compare the rendered strings character-by-character so separators
-   * such as commas and decimal points remain stable.
-   */
-  const changedIndexes =
-    useMemo(() => {
-      const maxLength =
-        Math.max(
-          formatted.length,
-          previousValue.length,
-        )
+  const changedIndexes = useMemo(() => {
+    const maxLength = Math.max(
+      formatted.length,
+      previousValue.length,
+    )
 
-      const indexes = new Set()
+    const indexes = new Set()
 
-      for (
-        let index = 0;
-        index < maxLength;
-        index += 1
-      ) {
-        if (
-          formatted[index] !==
-          previousValue[index]
-        ) {
-          indexes.add(index)
-        }
+    for (let index = 0; index < maxLength; index += 1) {
+      if (formatted[index] !== previousValue[index]) {
+        indexes.add(index)
       }
+    }
 
-      return indexes
-    }, [
-      formatted,
-      previousValue,
-    ])
+    return indexes
+  }, [formatted, previousValue])
 
-  const tone =
-    live
-      ? TONES[direction] ?? TONES.up
-      : TONES.closed
-
-  const rowKey =
-    previous.tick
+  const tone = live ? TONES[direction] ?? TONES.up : TONES.closed
+  const rowKey = previous.tick
 
   return (
     <div
       role="group"
       aria-label="Live market price"
       className="
-        grid
-        grid-cols-[1fr_auto_1fr]
+        relative
+        mx-auto
+        flex
+        h-[52px]
+        w-full
+        max-w-[420px]
         items-center
-        gap-2
+        justify-between
+        rounded-full
+        border
+        border-cyan-400/40
+        bg-gradient-to-r
+        from-cyan-950/70
+        via-black/85
+        to-cyan-950/70
+        px-4
+        shadow-[0_0_25px_rgba(0,191,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-4px_10px_rgba(0,0,0,0.85)]
+        backdrop-blur-2xl
       "
     >
-      {/* ================================================================== */}
-      {/* MARKET NAME                                                        */}
-      {/* ================================================================== */}
+      {/* Top glossy reflection line */}
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-x-6
+          top-0
+          h-[1px]
+          bg-gradient-to-r
+          from-transparent
+          via-cyan-200/70
+          to-transparent
+        "
+      />
 
+      {/* Market Name */}
       <span
         className="
           truncate
-          text-[11px]
-          font-semibold
-          tracking-[0.01em]
-          text-white/55
+          text-[13px]
+          font-black
+          tracking-wider
+          text-white
+          drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]
         "
       >
         {marketName}
       </span>
 
-      {/* ================================================================== */}
-      {/* LIVE PRICE MACHINE                                                 */}
-      {/* ================================================================== */}
-
+      {/* Live Price Machine Display */}
       <motion.div
         key={rowKey}
         role="img"
         aria-label={`${marketName} live price ${formatted}`}
         initial={
-          !reducedMotion &&
-          previous.reversal &&
-          live
+          !reducedMotion && previous.reversal && live
             ? REVERSAL_ANIMATION.initial
             : false
         }
         animate={
-          !reducedMotion &&
-          previous.reversal &&
-          live
+          !reducedMotion && previous.reversal && live
             ? REVERSAL_ANIMATION.animate
             : undefined
         }
         transition={
-          !reducedMotion &&
-          previous.reversal &&
-          live
+          !reducedMotion && previous.reversal && live
             ? REVERSAL_ANIMATION.transition
             : undefined
         }
         className="
-          relative
           flex
           overflow-hidden
-          rounded-[7px]
+          rounded-lg
           border
-          border-cyan-300/20
-          bg-black/55
-          shadow-[inset_0_1px_0_rgba(255,255,255,0.10),inset_0_-2px_5px_rgba(0,0,0,0.65),0_4px_10px_rgba(0,0,0,0.25)]
+          border-cyan-400/30
+          bg-black/60
+          shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)]
         "
       >
-        {/* -------------------------------------------------------------- */}
-        {/* Top glass reflection                                           */}
-        {/* -------------------------------------------------------------- */}
+        {formatted.split('').map((char, index) => {
+          const isDigitChar = /\d/.test(char)
+          const changed = changedIndexes.has(index)
 
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none
-            absolute
-            inset-x-0
-            top-0
-            z-20
-            h-px
-            bg-gradient-to-r
-            from-transparent
-            via-white/20
-            to-transparent
-          "
-        />
-
-        {formatted
-          .split('')
-          .map((char, index) => {
-            const isDigit =
-              /\d/.test(char)
-
-            const changed =
-              changedIndexes.has(index)
-
-            if (!isDigit) {
-              return (
-                <span
-                  key={`${char}-${index}`}
-                  aria-hidden="true"
-                  className="
-                    relative
-                    grid
-                    h-6
-                    w-[9px]
-                    place-items-center
-                    border-r
-                    border-white/[0.06]
-                    text-[14px]
-                    font-black
-                    leading-none
-                    text-white/50
-                  "
-                >
-                  {char}
-                </span>
-              )
-            }
-
-            const digitKey =
-              `${index}-${char}-${rowKey}`
-
+          if (!isDigitChar) {
             return (
               <span
-                key={digitKey}
+                key={`${char}-${index}`}
+                aria-hidden="true"
                 className="
-                  relative
                   grid
-                  h-6
-                  w-[15px]
+                  h-7
+                  w-[10px]
                   place-items-center
-                  overflow-hidden
                   border-r
-                  border-white/[0.07]
-                  last:border-r-0
+                  border-cyan-400/10
+                  text-[15px]
+                  font-black
+                  leading-none
+                  text-cyan-300/70
                 "
-                style={{
-                  backgroundColor:
-                    live && changed
-                      ? tone.cellGlow
-                      : 'rgba(255,255,255,0.012)',
-                }}
               >
-                {/* Mechanical inner highlight */}
-
-                <span
-                  aria-hidden="true"
-                  className="
-                    pointer-events-none
-                    absolute
-                    inset-x-0
-                    top-0
-                    h-px
-                    bg-white/[0.12]
-                  "
-                />
-
-                {/* Digit */}
-
-                <AnimatePresence
-                  initial={false}
-                  mode="popLayout"
-                >
-                  <motion.span
-                    key={digitKey}
-                    aria-hidden="true"
-                    initial={
-                      !reducedMotion &&
-                      live &&
-                      changed
-                        ? TICK_ANIMATION.initial
-                        : false
-                    }
-                    animate={
-                      !reducedMotion &&
-                      live &&
-                      changed
-                        ? TICK_ANIMATION.animate
-                        : undefined
-                    }
-                    transition={
-                      !reducedMotion &&
-                      live &&
-                      changed
-                        ? TICK_ANIMATION.transition
-                        : undefined
-                    }
-                    className="
-                      relative
-                      z-10
-                      text-[15px]
-                      font-black
-                      leading-none
-                      tabular-nums
-                    "
-                    style={{
-                      color:
-                        live
-                          ? tone.color
-                          : TONES.closed.color,
-
-                      textShadow:
-                        live &&
-                        changed
-                          ? tone.glow
-                          : tone.shadow,
-                    }}
-                  >
-                    {char}
-                  </motion.span>
-                </AnimatePresence>
-
-                {/* Active digit lower reflection */}
-
-                {live &&
-                  changed && (
-                    <motion.span
-                      aria-hidden="true"
-                      className="
-                        pointer-events-none
-                        absolute
-                        bottom-0
-                        left-1/2
-                        h-1
-                        w-3
-                        -translate-x-1/2
-                        rounded-full
-                        blur-[3px]
-                      "
-                      initial={{
-                        opacity: 0,
-                      }}
-                      animate={{
-                        opacity: [
-                          0,
-                          0.7,
-                          0,
-                        ],
-                      }}
-                      transition={{
-                        duration: 0.22,
-                        ease: 'easeOut',
-                      }}
-                      style={{
-                        backgroundColor:
-                          tone.color,
-                      }}
-                    />
-                  )}
+                {char}
               </span>
             )
-          })}
+          }
+
+          const digitKey = `${index}-${char}-${rowKey}`
+
+          return (
+            <span
+              key={digitKey}
+              className="
+                relative
+                grid
+                h-7
+                w-[18px]
+                place-items-center
+                overflow-hidden
+                border-r
+                border-cyan-400/10
+                last:border-r-0
+              "
+              style={{
+                backgroundColor:
+                  live && changed
+                    ? tone.cellGlow
+                    : 'rgba(0,191,255,0.02)',
+              }}
+            >
+              <AnimatePresence initial={false} mode="popLayout">
+                <motion.span
+                  key={digitKey}
+                  aria-hidden="true"
+                  initial={
+                    !reducedMotion && live && changed
+                      ? TICK_ANIMATION.initial
+                      : false
+                  }
+                  animate={
+                    !reducedMotion && live && changed
+                      ? TICK_ANIMATION.animate
+                      : undefined
+                  }
+                  transition={
+                    !reducedMotion && live && changed
+                      ? TICK_ANIMATION.transition
+                      : undefined
+                  }
+                  className="
+                    relative
+                    z-10
+                    text-[16px]
+                    font-black
+                    leading-none
+                    tabular-nums
+                  "
+                  style={{
+                    color: live ? tone.color : TONES.closed.color,
+                    textShadow:
+                      live && changed
+                        ? tone.glow
+                        : '0 0 10px rgba(0,191,255,0.4)',
+                  }}
+                >
+                  {char}
+                </motion.span>
+              </AnimatePresence>
+            </span>
+          )
+        })}
       </motion.div>
 
-      {/* ================================================================== */}
-      {/* LIVE MARKER                                                        */}
-      {/* ================================================================== */}
-
-      <LiveMarker
-        live={live}
-      />
+      {/* Live / Final Marker */}
+      <LiveMarker live={live} />
     </div>
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Live marker                                                                */
-/* -------------------------------------------------------------------------- */
-
-/**
- * @param {object} props
- * @param {boolean} props.live Market is currently ticking.
- * @returns {JSX.Element}
- */
 function LiveMarker({ live }) {
   return (
     <span
       className="
         flex
         items-center
-        justify-end
         gap-1.5
       "
     >
-      <span className="relative flex h-2 w-2">
+      <span className="relative flex h-2.5 w-2.5">
         {live && (
           <span
             aria-hidden="true"
@@ -506,7 +330,7 @@ function LiveMarker({ live }) {
               w-full
               animate-ping
               rounded-full
-              bg-emerald-400/50
+              bg-cyan-400/60
               motion-reduce:animate-none
             "
           />
@@ -516,12 +340,12 @@ function LiveMarker({ live }) {
           className={`
             relative
             inline-flex
-            h-2
-            w-2
+            h-2.5
+            w-2.5
             rounded-full
             ${
               live
-                ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]'
+                ? 'bg-cyan-400 shadow-[0_0_8px_rgba(0,191,255,1)]'
                 : 'bg-white/30'
             }
           `}
@@ -533,10 +357,10 @@ function LiveMarker({ live }) {
           text-[11px]
           font-black
           uppercase
-          tracking-[0.14em]
+          tracking-[0.15em]
           ${
             live
-              ? 'text-emerald-300'
+              ? 'text-cyan-300 drop-shadow-[0_0_5px_rgba(0,191,255,0.6)]'
               : 'text-white/40'
           }
         `}
