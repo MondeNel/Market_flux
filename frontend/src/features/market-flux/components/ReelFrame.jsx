@@ -3,27 +3,6 @@
  *
  * @description
  * Mechanical drum frame for the Market Flux reel.
- *
- * The frame is the STATIC layer of the reel. The digits that animate inside
- * it are a separate layer (MarketNumberSpinner / DigitReel), so the digits
- * can spin without redrawing the frame.
- *
- * LAYER ORDER (back to front, inside the chamber)
- * ---------------------------------------------------------------------------
- *   atmosphere glow   behind everything
- *   housing           dark mechanical body, broken rails, end brackets
- *   chamber           clipped reading window
- *     digits          z-20   (children)
- *     reading plane   z-30
- *     glass + shadow  z-40
- *   side chevrons     outside the clipped housing, one each side
- *
- * TONES
- * ---------------------------------------------------------------------------
- * cyan   normal operation
- * amber  near-miss tease (the result is being withheld)
- *
- * Presentational only. No game state is read here.
  */
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -34,44 +13,36 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 const TONES = {
   cyan: {
-    atmosphere: 'bg-cyan-400/[0.07]',
-    glow: '0 0 10px rgba(30,160,255,0.25)',
+    atmosphere: 'bg-cyan-400/[0.09]',
+    glow: '0 0 20px rgba(0,191,255,0.3)',
     railStrong:
-      'bg-cyan-200 shadow-[0_0_4px_rgba(95,232,255,0.95),0_0_12px_rgba(0,191,255,0.6)]',
-    railSoft: 'bg-cyan-400/60',
+      'bg-cyan-300 shadow-[0_0_6px_rgba(0,191,255,0.9),0_0_15px_rgba(0,191,255,0.6)]',
+    railSoft: 'bg-cyan-400/50',
     bracket:
-      'via-cyan-300 shadow-[0_0_7px_rgba(60,190,255,0.72)]',
+      'via-cyan-300 shadow-[0_0_10px_rgba(0,191,255,0.8)]',
     chevron:
-      'text-cyan-300 drop-shadow-[0_0_5px_rgba(60,200,255,0.8)]',
+      'text-cyan-300 drop-shadow-[0_0_6px_rgba(0,191,255,0.85)]',
   },
 
   amber: {
-    atmosphere: 'bg-amber-400/[0.09]',
-    glow: '0 0 14px rgba(251,191,36,0.38)',
+    atmosphere: 'bg-amber-400/[0.1]',
+    glow: '0 0 20px rgba(245,158,11,0.35)',
     railStrong:
-      'bg-amber-200 shadow-[0_0_4px_rgba(253,230,138,0.95),0_0_12px_rgba(251,191,36,0.6)]',
-    railSoft: 'bg-amber-400/60',
+      'bg-amber-300 shadow-[0_0_6px_rgba(245,158,11,0.9),0_0_15px_rgba(245,158,11,0.6)]',
+    railSoft: 'bg-amber-400/50',
     bracket:
-      'via-amber-300 shadow-[0_0_7px_rgba(251,191,36,0.85)]',
+      'via-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.85)]',
     chevron:
-      'text-amber-300 drop-shadow-[0_0_5px_rgba(251,191,36,0.85)]',
+      'text-amber-300 drop-shadow-[0_0_6px_rgba(245,158,11,0.85)]',
   },
 }
 
-/**
- * Broken structural rails along the top and bottom edges.
- * `strong` segments carry the bright neon; the rest stay soft.
- */
 const RAILS = [
-  { edge: 'top-0 left-[8%] w-[26%]', strong: true },
-  { edge: 'top-0 right-[10%] w-[16%]', strong: false },
-  { edge: 'bottom-0 left-[22%] w-[31%]', strong: true },
-  { edge: 'bottom-0 right-[7%] w-[13%]', strong: false },
+  { edge: 'top-0 left-[6%] w-[30%]', strong: true },
+  { edge: 'top-0 right-[8%] w-[18%]', strong: false },
+  { edge: 'bottom-0 left-[18%] w-[35%]', strong: true },
+  { edge: 'bottom-0 right-[6%] w-[15%]', strong: false },
 ]
-
-/* -------------------------------------------------------------------------- */
-/* Main component                                                             */
-/* -------------------------------------------------------------------------- */
 
 /**
  * @param {object} props
@@ -86,15 +57,11 @@ function ReelFrame({
   children,
 }) {
   const tone = tease ? TONES.amber : TONES.cyan
-
   const plateHeight = Math.round(height * 0.72)
 
   return (
     <div className="relative w-full">
-      {/* ================================================================ */}
-      {/* Atmospheric glow                                                  */}
-      {/* ================================================================ */}
-
+      {/* Atmospheric glow */}
       <div
         aria-hidden="true"
         className={`
@@ -102,8 +69,8 @@ function ReelFrame({
           absolute
           left-1/2
           top-1/2
-          h-24
-          w-[82%]
+          h-28
+          w-[85%]
           -translate-x-1/2
           -translate-y-1/2
           rounded-full
@@ -114,13 +81,10 @@ function ReelFrame({
         `}
       />
 
-      <div className="relative flex w-full items-center gap-1.5">
+      <div className="relative flex w-full items-center gap-2">
         <Chevron side="left" tone={tone} />
 
-        {/* ============================================================== */}
-        {/* Mechanical housing                                              */}
-        {/* ============================================================== */}
-
+        {/* Mechanical housing */}
         <div
           className="
             relative
@@ -130,34 +94,66 @@ function ReelFrame({
             items-center
             justify-center
             overflow-hidden
-            rounded-[14px]
+            rounded-[18px]
             border
-            border-cyan-400/15
-            px-[5px]
-            py-[5px]
+            border-cyan-400/30
+            px-[6px]
+            py-[6px]
             transition-shadow
             duration-300
           "
           style={{
             perspective: '1000px',
-
             background: `
               linear-gradient(
                 180deg,
-                rgba(3,10,15,0.76),
-                rgba(0,4,8,0.92)
+                rgba(6,18,28,0.9),
+                rgba(2,8,14,0.98)
               )
             `,
-
             boxShadow: `
-              inset 0 1px 0 rgba(255,255,255,0.10),
-              inset 0 -6px 12px rgba(0,0,0,0.80),
-              0 8px 22px rgba(0,0,0,0.45),
+              inset 0 1px 2px rgba(255,255,255,0.2),
+              inset 0 -8px 16px rgba(0,0,0,0.9),
+              0 10px 25px rgba(0,0,0,0.6),
               ${tone.glow}
             `,
           }}
         >
-          {/* Broken top and bottom rails */}
+          {/* Heavy mechanical side caps/rings */}
+          <div
+            aria-hidden="true"
+            className="
+              absolute
+              -left-2
+              top-1/2
+              z-50
+              h-[92%]
+              w-4
+              -translate-y-1/2
+              rounded-l-lg
+              border
+              border-cyan-300/40
+              bg-[linear-gradient(90deg,#020810_0%,#154360_50%,#04121f_100%)]
+              shadow-[0_0_10px_rgba(0,191,255,0.4)]
+            "
+          />
+          <div
+            aria-hidden="true"
+            className="
+              absolute
+              -right-2
+              top-1/2
+              z-50
+              h-[92%]
+              w-4
+              -translate-y-1/2
+              rounded-r-lg
+              border
+              border-cyan-300/40
+              bg-[linear-gradient(90deg,#04121f_0%,#154360_50%,#020810_100%)]
+              shadow-[0_0_10px_rgba(0,191,255,0.4)]
+            "
+          />
 
           {RAILS.map(({ edge, strong }) => (
             <span
@@ -166,24 +162,24 @@ function ReelFrame({
               className={`
                 pointer-events-none
                 absolute
-                h-px
+                h-[2px]
+                z-30
                 ${edge}
                 ${strong ? tone.railStrong : tone.railSoft}
               `}
             />
           ))}
 
-          {/* End brackets */}
-
-          {['left-0', 'right-0'].map((side) => (
+          {['left-2', 'right-2'].map((side) => (
             <span
               key={side}
               aria-hidden="true"
               className={`
                 pointer-events-none
                 absolute
-                bottom-[14%]
-                top-[14%]
+                bottom-[12%]
+                top-[12%]
+                z-30
                 w-[3px]
                 rounded-full
                 bg-gradient-to-b
@@ -195,95 +191,85 @@ function ReelFrame({
             />
           ))}
 
-          {/* ============================================================ */}
-          {/* Reading chamber                                              */}
-          {/* ============================================================ */}
-
+          {/* Reading chamber */}
           <div
             className="
               relative
-              z-10
+              z-20
               flex
               min-w-0
               flex-1
               items-center
               justify-center
               overflow-hidden
-              rounded-[10px]
+              rounded-[12px]
             "
             style={{
               height,
-
               background: `
                 linear-gradient(
                   180deg,
-                  rgba(9,20,28,0.78),
-                  rgba(1,6,10,0.90)
+                  rgba(10,24,36,0.85),
+                  rgba(1,5,9,0.96)
                 )
               `,
-
               boxShadow: `
-                inset 0 3px 7px rgba(0,0,0,0.72),
-                inset 0 -3px 8px rgba(0,0,0,0.88),
-                inset 0 0 0 1px rgba(0,95,130,0.30)
+                inset 0 4px 10px rgba(0,0,0,0.85),
+                inset 0 -4px 10px rgba(0,0,0,0.95),
+                inset 0 0 0 1px rgba(0,191,255,0.25)
               `,
             }}
           >
-            {/* Central reading plane (above the digits) */}
-
+            {/* Central reading plane */}
             <span
               aria-hidden="true"
               className="
                 pointer-events-none
                 absolute
-                inset-x-[3%]
+                inset-x-[2%]
                 top-1/2
                 z-30
                 -translate-y-1/2
-                rounded-[6px]
+                rounded-[8px]
                 border-y
-                border-cyan-300/[0.08]
+                border-cyan-300/15
               "
               style={{
                 height: plateHeight,
-
                 background: `
                   linear-gradient(
                     180deg,
-                    rgba(0,191,255,0.025),
-                    rgba(255,255,255,0.025),
-                    rgba(0,191,255,0.018)
+                    rgba(0,191,255,0.04),
+                    rgba(255,255,255,0.04),
+                    rgba(0,191,255,0.03)
                   )
                 `,
-
                 boxShadow: `
-                  inset 0 1px 0 rgba(255,255,255,0.06),
-                  inset 0 -1px 0 rgba(0,191,255,0.10)
+                  inset 0 1px 2px rgba(255,255,255,0.1),
+                  inset 0 -1px 2px rgba(0,191,255,0.2)
                 `,
               }}
             />
 
-            {/* Top glass reflection */}
-
+            {/* Top glass specular reflection */}
             <span
               aria-hidden="true"
               className="
                 pointer-events-none
                 absolute
-                left-[5%]
-                right-[5%]
+                left-[4%]
+                right-[4%]
                 top-0
                 z-40
-                h-[20px]
-                rounded-t-[10px]
+                h-[22px]
+                rounded-t-[12px]
                 bg-gradient-to-b
-                from-white/[0.10]
+                from-white/15
                 to-transparent
               "
             />
 
             {/* Bottom mechanical shadow */}
-
             <span
               aria-hidden="true"
               className="
@@ -293,14 +279,12 @@ function ReelFrame({
                 left-0
                 right-0
                 z-40
-                h-[22px]
+                h-[24px]
                 bg-gradient-to-t
-                from-black/50
+                from-black/70
                 to-transparent
               "
             />
-
-            {/* Digits */}
 
             {children}
           </div>
@@ -312,38 +296,23 @@ function ReelFrame({
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Side chevron                                                               */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Inward-pointing indicator outside the clipped housing.
- *
- * @param {object} props
- * @param {'left'|'right'} props.side
- * @param {object} props.tone
- * @returns {JSX.Element}
- */
 function Chevron({ side, tone }) {
-  const Icon =
-    side === 'left'
-      ? ChevronRight
-      : ChevronLeft
+  const Icon = side === 'left' ? ChevronRight : ChevronLeft
 
   return (
     <span
       aria-hidden="true"
       className="
         grid
-        w-4
+        w-5
         shrink-0
         place-items-center
       "
     >
       <Icon
         className={`
-          h-[18px]
-          w-[18px]
+          h-5
+          w-5
           transition-colors
           duration-300
           ${tone.chevron}
