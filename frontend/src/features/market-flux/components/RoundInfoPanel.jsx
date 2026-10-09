@@ -3,31 +3,6 @@
  *
  * @description
  * Round information bar: Round, Spins remaining and Current stake.
- *
- *   ┌───────────┬──────────────────┬───────────────┐
- *   │ Round     │ Spins remaining  │ Current stake │
- *   │ 1 / 3     │   ●  ○  ○        │ R10           │
- *   └───────────┴──────────────────┴───────────────┘
- *
- * The stake here is a read-only display. It is changed with the − / +
- * control in the middle of the action row (StakeControl).
- *
- * SPIN DOTS
- * ---------------------------------------------------------------------------
- * One dot per round, showing where the player is in the run:
- *
- *   current   bright and glowing   the round being played
- *   played    dim, filled          rounds already finished (won or lost)
- *   upcoming  hollow               rounds still to come
- *
- * At the start of a run this reads ● ○ ○, as in the layout sketch.
- *
- * LAYOUT OWNERSHIP
- * ---------------------------------------------------------------------------
- * No landmark and no horizontal padding. The wrapper in MarketFlux.jsx owns
- * both.
- *
- * Presentational only.
  */
 
 import { TOTAL_ROUNDS } from '../hooks/useMarketSimulation'
@@ -35,20 +10,19 @@ import { formatMoney } from '../utils/formatMoney'
 
 const DOT_STATES = {
   current:
-    'border-cyan-200/80 bg-cyan-300 shadow-[0_0_8px_rgba(60,200,255,0.8)]',
+    'border-cyan-300 bg-cyan-400 shadow-[0_0_8px_rgba(0,191,255,1)]',
 
   played:
-    'border-cyan-300/40 bg-cyan-400/40',
+    'border-cyan-400/40 bg-cyan-400/40 shadow-[0_0_4px_rgba(0,191,255,0.4)]',
 
   upcoming:
-    'border-white/25 bg-white/[0.04]',
+    'border-cyan-400/30 bg-cyan-950/60',
 }
 
 /**
  * @param {object} props
  * @param {number} props.round Current round, 1-based.
- * @param {number} [props.roundsPlayed] Rounds finished in this run, win or
- *   lose. Defaults to `round - 1`.
+ * @param {number} [props.roundsPlayed] Rounds finished in this run, win or lose.
  * @param {number} props.stake Current stake.
  * @returns {JSX.Element}
  */
@@ -65,46 +39,71 @@ function RoundInfoPanel({
       role="group"
       aria-label="Round information"
       className="
-        market-flux-mechanical
-        grid
-        grid-cols-3
-        items-stretch
-        rounded-[14px]
+        relative
+        mx-auto
+        flex
+        h-[52px]
+        w-full
+        max-w-[420px]
+        items-center
+        justify-between
+        rounded-full
         border
-        border-cyan-300/25
-        bg-black/45
+        border-cyan-400/40
+        bg-gradient-to-r
+        from-cyan-950/70
+        via-black/85
+        to-cyan-950/70
+        px-5
+        shadow-[0_0_25px_rgba(0,191,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-4px_10px_rgba(0,0,0,0.85)]
+        backdrop-blur-2xl
       "
     >
+      {/* Top glossy reflection line */}
+      <span
+        aria-hidden="true"
+        className="
+          pointer-events-none
+          absolute
+          inset-x-8
+          top-0
+          h-[1px]
+          bg-gradient-to-r
+          from-transparent
+          via-cyan-200/70
+          to-transparent
+        "
+      />
+
       <Cell label="Round">
         <span
           className="
-            text-[17px]
+            text-[14px]
             font-black
-            leading-6
-            tabular-nums
+            tracking-wider
             text-white
+            drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]
+            tabular-nums
           "
         >
           {round}
-          <span className="text-white/40">
+          <span className="text-cyan-400/60 font-bold text-[12px]">
             {' '}
             / {TOTAL_ROUNDS}
           </span>
         </span>
       </Cell>
 
-      <Cell
-        label="Spins remaining"
-        divided
-      >
+      <Cell label="Spins remaining" divided>
         <div
           role="img"
           aria-label={`Spin ${Math.min(round, TOTAL_ROUNDS)} of ${TOTAL_ROUNDS}`}
           className="
+            relative
             flex
-            h-6
+            h-5
             items-center
-            gap-2
+            gap-2.5
           "
         >
           {Array.from(
@@ -121,11 +120,11 @@ function RoundInfoPanel({
                 <span
                   key={index}
                   className={`
-                    h-3
-                    w-3
+                    h-2.5
+                    w-2.5
                     rounded-full
                     border
-                    transition-colors
+                    transition-all
                     duration-300
                     ${DOT_STATES[state]}
                   `}
@@ -133,20 +132,48 @@ function RoundInfoPanel({
               )
             },
           )}
+
+          {/* Progress track line under dots */}
+          <span
+            aria-hidden="true"
+            className="
+              absolute
+              inset-x-0
+              bottom-0
+              h-[2px]
+              rounded-full
+              bg-cyan-400/20
+            "
+          >
+            <span
+              className="
+                absolute
+                left-0
+                top-0
+                h-full
+                rounded-full
+                bg-cyan-400
+                shadow-[0_0_6px_rgba(0,191,255,0.8)]
+                transition-all
+                duration-300
+              "
+              style={{
+                width: `${(Math.min(round, TOTAL_ROUNDS) / TOTAL_ROUNDS) * 100}%`,
+              }}
+            />
+          </span>
         </div>
       </Cell>
 
-      <Cell
-        label="Current stake"
-        divided
-      >
+      <Cell label="Current stake" divided>
         <span
           className="
-            text-[17px]
+            text-[14px]
             font-black
-            leading-6
-            tabular-nums
+            tracking-wider
             text-cyan-200
+            drop-shadow-[0_0_8px_rgba(0,191,255,0.6)]
+            tabular-nums
           "
         >
           {formatMoney(stake)}
@@ -156,17 +183,6 @@ function RoundInfoPanel({
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Cell                                                                       */
-/* -------------------------------------------------------------------------- */
-
-/**
- * @param {object} props
- * @param {string} props.label
- * @param {boolean} [props.divided=false] Draw a divider on the left edge.
- * @param {React.ReactNode} props.children
- * @returns {JSX.Element}
- */
 function Cell({
   label,
   divided = false,
@@ -177,22 +193,24 @@ function Cell({
       className={`
         flex
         min-w-0
+        flex-1
         flex-col
         items-center
         justify-center
-        gap-1
+        gap-0.5
         px-2
-        py-2
-        ${divided ? 'border-l border-white/10' : ''}
+        ${divided ? 'border-l border-cyan-400/20' : ''}
       `}
     >
       <span
         className="
           max-w-full
           truncate
-          text-[10px]
-          font-semibold
-          text-white/50
+          text-[9px]
+          font-black
+          uppercase
+          tracking-[0.2em]
+          text-cyan-400/60
         "
       >
         {label}
