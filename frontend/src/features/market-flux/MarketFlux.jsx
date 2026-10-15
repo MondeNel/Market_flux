@@ -76,13 +76,7 @@ function MarketFlux() {
   const decimals = game.market?.decimals ?? 2
 
   return (
-    <div
-      className="relative isolate flex w-full min-w-0 flex-col overflow-hidden"
-      style={{
-        height: 'calc(100dvh - var(--market-flux-nav-height, 64px) - env(safe-area-inset-bottom, 0px))',
-        maxHeight: '100%',
-      }}
-    >
+    <div className="relative isolate flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
       <header className="relative z-40 shrink-0">
         <MarketFluxHeader balance={game.balance} />
       </header>
