@@ -1,59 +1,50 @@
-
 /**
  * @file src/features/market-flux/components/RoundInfoPanel.jsx
  *
  * @description
- * Compact mechanical round-progress rail for Market Flux.
+ * Compact single-screen round progress rail for Market Flux.
  *
  * DESIGN
  * ---------------------------------------------------------------------------
- * - Reference-inspired angular glass housing
- * - Cyan metallic frame with recessed dark interior
+ * - Single angular metallic liquid-glass housing
+ * - 34px high on compact mobile screens
  * - Round counter on the left
  * - Three illuminated progression indicators
  * - LIVE indicator on the right
- * - Mobile-first dimensions
- *
- * The current stake is still available through the stake
- * controller, so it is not repeated in this status rail.
+ * - No duplicated outer console
  *
  * GAME LOGIC
  * ---------------------------------------------------------------------------
- * - Uses TOTAL_ROUNDS from the simulation engine
- * - Supports roundsPlayed for completed progress
- * - Does not modify game state
+ * - TOTAL_ROUNDS comes from the simulation engine
+ * - roundsPlayed determines completed progress
+ * - stake retained for API compatibility
+ * - No game-state mutations
  */
 
 import { TOTAL_ROUNDS } from '../hooks/useMarketSimulation'
 
-/* -------------------------------------------------------------------------- */
-/* Constants                                                                  */
-/* -------------------------------------------------------------------------- */
-
 const DOT_STATES = {
   current: {
     outer:
-      'border-cyan-200 bg-cyan-400/25 shadow-[0_0_10px_rgba(0,220,255,0.75)]',
+      'border-cyan-100/90 bg-cyan-400/25 shadow-[0_0_7px_rgba(0,220,255,0.7)]',
     inner:
-      'bg-cyan-300 shadow-[0_0_7px_rgba(0,240,255,1)]',
+      'bg-cyan-200 shadow-[0_0_6px_rgba(0,240,255,0.9)]',
   },
 
   played: {
     outer:
-      'border-emerald-300/70 bg-emerald-400/20 shadow-[0_0_6px_rgba(0,255,170,0.35)]',
-    inner: 'bg-emerald-300',
+      'border-emerald-300/70 bg-emerald-400/20',
+    inner:
+      'bg-emerald-300 shadow-[0_0_5px_rgba(0,255,170,0.5)]',
   },
 
   upcoming: {
     outer:
-      'border-sky-400/65 bg-[#021725] shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)]',
-    inner: 'bg-transparent',
+      'border-sky-400/40 bg-[#02121d]',
+    inner:
+      'bg-transparent',
   },
 }
-
-/* -------------------------------------------------------------------------- */
-/* Progress indicator                                                         */
-/* -------------------------------------------------------------------------- */
 
 function ProgressDot({ state }) {
   const tone = DOT_STATES[state]
@@ -62,18 +53,20 @@ function ProgressDot({ state }) {
     <span
       aria-hidden="true"
       className={`
-        relative z-10 grid shrink-0 place-items-center
-        h-[clamp(12px,3.6vw,22px)]
-        w-[clamp(12px,3.6vw,22px)]
+        relative z-10 grid
+        h-[11px] w-[11px]
+        shrink-0 place-items-center
         rounded-full border
+        sm:h-[14px] sm:w-[14px]
         transition-all duration-300
         ${tone.outer}
       `}
     >
       <span
         className={`
-          h-[55%] w-[55%] rounded-full
-          transition-all duration-300
+          h-[5px] w-[5px]
+          rounded-full
+          sm:h-[7px] sm:w-[7px]
           ${tone.inner}
         `}
       />
@@ -81,8 +74,9 @@ function ProgressDot({ state }) {
       {state === 'current' && (
         <span
           className="
-            pointer-events-none absolute -inset-[3px]
-            rounded-full border border-cyan-300/25
+            pointer-events-none absolute
+            -inset-[2px] rounded-full
+            border border-cyan-300/20
           "
         />
       )}
@@ -90,125 +84,106 @@ function ProgressDot({ state }) {
   )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Main component                                                             */
-/* -------------------------------------------------------------------------- */
-
 /**
  * @param {object} props
- * @param {number} props.round Current round, 1-based.
- * @param {number} [props.roundsPlayed] Rounds finished.
- * @param {number} props.stake Current stake (kept for API compatibility).
- * @returns {JSX.Element}
+ * @param {number} props.round Current round (1-based).
+ * @param {number} [props.roundsPlayed] Finished rounds.
+ * @param {number} props.stake Retained for API compatibility.
  */
 function RoundInfoPanel({
   round,
   roundsPlayed,
   stake: _stake,
 }) {
-  const played = Math.max(
-    0,
-    Math.min(
-      roundsPlayed ?? round - 1,
-      TOTAL_ROUNDS,
-    ),
-  )
+  const totalRounds = Math.max(1, TOTAL_ROUNDS)
 
   const currentRound = Math.max(
     1,
-    Math.min(round, TOTAL_ROUNDS),
+    Math.min(round, totalRounds),
   )
 
-  const progress =
-    TOTAL_ROUNDS > 0
-      ? (played / TOTAL_ROUNDS) * 100
-      : 0
+  const played = Math.max(
+    0,
+    Math.min(
+      roundsPlayed ?? currentRound - 1,
+      totalRounds,
+    ),
+  )
+
+  const progress = (played / totalRounds) * 100
 
   return (
     <div
       role="group"
-      aria-label={`Round ${currentRound} of ${TOTAL_ROUNDS}. ${played} rounds completed.`}
+      aria-label={`Round ${currentRound} of ${totalRounds}. ${played} rounds completed.`}
       className="
-        relative mx-auto w-full
+        relative mx-auto
+        h-[34px] w-full
         max-w-[900px]
-        px-[2px]
+        sm:h-[42px]
       "
     >
-      {/* Outer mechanical frame */}
+      {/* Single angular machine housing */}
       <div
         className="
-          relative isolate flex
-          h-[clamp(43px,7vw,62px)]
-          w-full items-center
+          relative isolate
+          flex h-full w-full
+          items-center
           overflow-hidden
-          border border-cyan-400/65
-          bg-[linear-gradient(180deg,rgba(12,75,104,0.9)_0%,rgba(0,13,25,0.95)_30%,rgba(0,8,17,0.97)_70%,rgba(0,71,103,0.85)_100%)]
-          px-[clamp(10px,3vw,28px)]
-          shadow-[0_6px_16px_rgba(0,0,0,0.75),0_0_12px_rgba(0,191,255,0.3),inset_0_1px_2px_rgba(190,245,255,0.5),inset_0_-2px_4px_rgba(0,0,0,0.9)]
-          backdrop-blur-xl
+          border border-cyan-300/50
+          bg-[linear-gradient(180deg,rgba(9,56,79,0.88)_0%,rgba(0,13,24,0.95)_35%,rgba(0,7,15,0.97)_70%,rgba(4,48,69,0.88)_100%)]
+          px-3
+          sm:px-5
+          shadow-[0_4px_10px_rgba(0,0,0,0.75),inset_0_1px_2px_rgba(190,245,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.85)]
+          backdrop-blur-md
         "
         style={{
           clipPath:
-            'polygon(4% 0,96% 0,100% 28%,100% 72%,96% 100%,4% 100%,0 72%,0 28%)',
+            'polygon(3% 0,97% 0,100% 30%,100% 70%,97% 100%,3% 100%,0 70%,0 30%)',
         }}
       >
-        {/* Upper specular rail */}
+        {/* Top chrome highlight */}
         <span
           aria-hidden="true"
           className="
             pointer-events-none absolute
-            left-[8%] right-[8%] top-0
-            h-[2px]
+            inset-x-[12%] top-0
+            h-px
             bg-gradient-to-r
-            from-transparent via-cyan-200 to-transparent
-            shadow-[0_0_8px_rgba(0,220,255,0.8)]
+            from-transparent
+            via-cyan-100/80
+            to-transparent
           "
         />
 
-        {/* Recessed inner glass */}
-        <span
-          aria-hidden="true"
-          className="
-            pointer-events-none absolute
-            inset-[4px]
-            border border-cyan-300/10
-            bg-[linear-gradient(180deg,rgba(0,180,255,0.06),transparent_55%,rgba(0,160,255,0.04))]
-          "
-          style={{
-            clipPath:
-              'polygon(4% 0,96% 0,100% 28%,100% 72%,96% 100%,4% 100%,0 72%,0 28%)',
-          }}
-        />
-
-        {/* LEFT: Round counter */}
-        <div className="relative z-10 flex min-w-0 flex-[1.1] items-center">
+        {/* Round counter */}
+        <div className="relative z-10 flex min-w-0 flex-1 items-center">
           <span
             className="
               whitespace-nowrap
-              text-[clamp(11px,2.8vw,20px)]
-              font-black uppercase
-              tracking-[0.025em]
-              text-[#a7ddff]
-              drop-shadow-[0_0_7px_rgba(0,180,255,0.4)]
+              text-[10px] font-black
+              uppercase tracking-[0.025em]
+              text-[#b8e9ff]
+              sm:text-[13px]
             "
           >
-            Round {currentRound} / {TOTAL_ROUNDS}
+            Round {currentRound}/{totalRounds}
           </span>
         </div>
 
-        {/* CENTER: Round progression */}
+        {/* Progress indicators */}
         <div
           role="img"
-          aria-label={`${played} of ${TOTAL_ROUNDS} rounds completed`}
+          aria-label={`${played} of ${totalRounds} rounds completed`}
           className="
             relative z-10
-            flex flex-[1.2] items-center
-            justify-center
-            gap-[clamp(9px,3vw,34px)]
+            flex flex-1
+            items-center justify-center
+            gap-3 sm:gap-5
           "
         >
           {Array.from(
-            { length: TOTAL_ROUNDS },
+            { length: totalRounds },
             (_, index) => {
               const state =
                 index < played
@@ -226,74 +201,74 @@ function RoundInfoPanel({
             },
           )}
 
-          {/* Progress rail below the nodes */}
-          <div
+          {/* Thin progression track */}
+          <span
             aria-hidden="true"
             className="
               pointer-events-none absolute
-              bottom-[-7px] left-[12%] right-[12%]
-              h-[3px] overflow-hidden rounded-full
-              bg-cyan-900/70
-              shadow-[inset_0_1px_2px_rgba(0,0,0,0.9)]
+              bottom-[-5px]
+              left-[16%] right-[16%]
+              h-[2px] overflow-hidden
+              rounded-full bg-cyan-900/60
             "
           >
-            <div
+            <span
               className="
-                h-full rounded-full
+                block h-full
                 bg-gradient-to-r
                 from-cyan-400 to-emerald-300
-                shadow-[0_0_7px_rgba(0,240,255,0.8)]
                 transition-[width] duration-500
               "
               style={{
                 width: `${progress}%`,
               }}
             />
-          </div>
+          </span>
         </div>
 
-        {/* RIGHT: Live indicator */}
+        {/* LIVE indicator */}
         <div
           className="
             relative z-10 flex
-            min-w-0 flex-1 items-center
-            justify-end gap-[clamp(4px,1.5vw,10px)]
+            min-w-0 flex-1
+            items-center justify-end
+            gap-1.5
           "
         >
           <span
             aria-hidden="true"
             className="
-              h-[clamp(7px,2vw,12px)]
-              w-[clamp(7px,2vw,12px)]
+              h-[6px] w-[6px]
               shrink-0 rounded-full
-              bg-emerald-400
-              shadow-[0_0_9px_rgba(0,255,160,0.9)]
+              bg-[#39FF88]
+              shadow-[0_0_6px_rgba(57,255,136,0.8)]
+              sm:h-[8px] sm:w-[8px]
             "
           />
 
           <span
             className="
-              text-[clamp(11px,3vw,20px)]
-              font-black uppercase
-              tracking-[0.04em]
-              text-emerald-300
-              drop-shadow-[0_0_8px_rgba(0,255,160,0.4)]
+              text-[10px] font-black
+              uppercase tracking-[0.04em]
+              text-[#39FF88]
+              sm:text-[13px]
             "
           >
             Live
           </span>
         </div>
 
-        {/* Bottom structural reflection */}
+        {/* Bottom chrome highlight */}
         <span
           aria-hidden="true"
           className="
             pointer-events-none absolute
-            bottom-0 left-[10%] right-[10%]
-            h-[2px]
+            inset-x-[16%] bottom-0
+            h-px
             bg-gradient-to-r
-            from-transparent via-cyan-400/80 to-transparent
-            shadow-[0_0_8px_rgba(0,191,255,0.7)]
+            from-transparent
+            via-cyan-300/50
+            to-transparent
           "
         />
       </div>
