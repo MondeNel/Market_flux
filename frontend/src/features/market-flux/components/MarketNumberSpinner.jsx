@@ -2,8 +2,9 @@
  * @file src/features/market-flux/components/MarketNumberSpinner.jsx
  *
  * @description
- * Seven-drum mechanical market result spinner. ReelFrame owns the external
- * cylinder; this component owns only the digit drums and their animation.
+ * Compact mechanical market result spinner. ReelFrame owns the external
+ * cylinder; this component owns the digit drums and their animation.
+ * The 52px chamber is designed for a single-screen mobile game stage.
  *
  * Phases: idle -> live -> revealing -> result.
  * Only digits changed from startPrice receive the final direction colour.
@@ -13,8 +14,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatPrice } from '../utils/formatMoney'
 import ReelFrame from './ReelFrame'
 
-const CELL_HEIGHT = 60
-const DISPLAY_HEIGHT = 80
+// Match the compact reading window while retaining independent digit movement.
+const CELL_HEIGHT = 38
+const DISPLAY_HEIGHT = 52
 const SPIN_SPEED = 19
 const SPIN_SPEED_STEP = 0.7
 const RAMP_MS = 100
@@ -102,10 +104,10 @@ function MarketNumberSpinner({
   const chars = [...shown]
   const digitCount = chars.filter(isDigit).length
   const fontSize = digitCount >= 8
-    ? 'clamp(21px, 5.9vw, 64px)'
+    ? 'clamp(18px, 5.2vw, 36px)'
     : digitCount >= 7
-      ? 'clamp(25px, 7vw, 76px)'
-      : 'clamp(28px, 8vw, 82px)'
+      ? 'clamp(20px, 5.8vw, 40px)'
+      : 'clamp(22px, 6.4vw, 44px)'
 
   let digitIndex = -1
 
@@ -123,7 +125,7 @@ function MarketNumberSpinner({
                 <span
                   key={`separator-${index}`}
                   aria-hidden="true"
-                  className="relative z-20 flex h-full w-[clamp(5px,1.5vw,15px)] shrink-0 items-center justify-center font-black text-cyan-100"
+                  className="relative z-20 flex h-full w-[clamp(3px,1vw,9px)] shrink-0 items-center justify-center font-black text-cyan-100"
                   style={{
                     fontSize: `calc(${fontSize} * .7)`,
                     textShadow: '0 0 12px rgba(0,220,255,.9)',
@@ -292,12 +294,12 @@ function DigitReel({ digit, order, mode, tease, tone, fontSize, onComplete }) {
       className="relative isolate block h-full min-w-0 flex-1 overflow-hidden border-x border-cyan-200/20"
       style={{
         background: 'linear-gradient(90deg,#00050a 0%,#071b2a 12%,#12374b 24%,#071b2a 45%,#020b14 76%,#000409 100%)',
-        boxShadow: 'inset 5px 0 8px rgba(0,0,0,.95), inset -5px 0 8px rgba(0,0,0,.95), 1px 0 0 rgba(75,220,255,.4)',
+        boxShadow: 'inset 2px 0 5px rgba(0,0,0,.95), inset -2px 0 5px rgba(0,0,0,.95), 1px 0 0 rgba(75,220,255,.4)',
       }}
     >
       {/* Polished vertical drum ribs */}
-      <span className="pointer-events-none absolute inset-y-0 left-0 z-30 w-[3px] bg-gradient-to-r from-cyan-100/55 via-cyan-400/25 to-transparent" />
-      <span className="pointer-events-none absolute inset-y-0 right-0 z-30 w-[3px] bg-gradient-to-l from-cyan-100/45 via-cyan-400/20 to-transparent" />
+      <span className="pointer-events-none absolute inset-y-0 left-0 z-30 w-[2px] bg-gradient-to-r from-cyan-100/55 via-cyan-400/25 to-transparent" />
+      <span className="pointer-events-none absolute inset-y-0 right-0 z-30 w-[2px] bg-gradient-to-l from-cyan-100/45 via-cyan-400/20 to-transparent" />
 
       {/* Curved drum reflection and central light window */}
       <span className="pointer-events-none absolute inset-x-0 top-0 z-30 h-[29%] bg-gradient-to-b from-black/90 via-cyan-900/30 to-transparent" />

@@ -150,12 +150,12 @@ function ReelFrame({
    * chamber × 1.65 + external vertical padding.
    *
    * New version:
-   * chamber × 1.32 with a small minimum structural allowance.
+   * chamber × 0.68 with a small minimum structural allowance.
    */
   const housingHeight = Math.max(
-    68,
-    Math.round(chamberHeight * 1.32),
-  )
+  80,
+  Math.ceil(chamberHeight / 0.68),
+)
 
   return (
     <div
