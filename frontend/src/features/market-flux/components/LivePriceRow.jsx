@@ -1,78 +1,18 @@
 /**
  * @file src/features/market-flux/components/LivePriceRow.jsx
  *
- * @description
- * Compact live-market strip displayed beneath the main Market Flux reel.
+ * Compact, reference-inspired live-price rail.
+ * The market name is retained for accessibility but is not repeated visually.
  */
 
-import {
-  useMemo,
-  useState,
-} from 'react'
-
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-} from 'framer-motion'
-
+import { useRef } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { formatPrice } from '../utils/formatMoney'
 
-const TONES = {
-  up: {
-    color: '#39FF88',
-    glow: '0 0 8px rgba(57,255,136,0.8)',
-    cellGlow: 'rgba(57,255,136,0.12)',
-  },
-
-  down: {
-    color: '#FF3158',
-    glow: '0 0 8px rgba(255,49,88,0.8)',
-    cellGlow: 'rgba(255,49,88,0.12)',
-  },
-
-  closed: {
-    color: 'rgba(234,248,255,0.85)',
-    glow: 'none',
-    cellGlow: 'rgba(255,255,255,0.03)',
-  },
-}
-
-const TICK_ANIMATION = {
-  initial: {
-    y: 4,
-    opacity: 0.4,
-    scale: 0.95,
-  },
-
-  animate: {
-    y: 0,
-    opacity: 1,
-    scale: 1,
-  },
-
-  transition: {
-    duration: 0.16,
-    ease: 'easeOut',
-  },
-}
-
-const REVERSAL_ANIMATION = {
-  initial: {
-    opacity: 0.72,
-    scale: 0.985,
-  },
-
-  animate: {
-    opacity: [0.72, 1, 0.86, 1],
-    scale: [0.985, 1, 0.992, 1],
-  },
-
-  transition: {
-    duration: 0.28,
-    times: [0, 0.35, 0.65, 1],
-    ease: 'easeOut',
-  },
+const COLORS = {
+  up: '#39FF88',
+  down: '#FF3158',
+  neutral: '#A8F3FF',
 }
 
 function LivePriceRow({
@@ -83,291 +23,103 @@ function LivePriceRow({
   phase = 'idle',
 }) {
   const reducedMotion = useReducedMotion()
-
-  const live = phase !== 'result'
-
   const formatted = formatPrice(price, decimals)
+  const previousRef = useRef(formatted)
+  const previousDirectionRef = useRef(direction)
+  const tickRef = useRef(0)
 
-  const [previous, setPrevious] = useState({
-    value: formatted,
-    direction,
-    tick: 0,
-    reversal: false,
-  })
-
-  if (previous.value !== formatted) {
-    setPrevious({
-      value: formatted,
-      direction,
-      tick: previous.tick + 1,
-      reversal: direction !== previous.direction,
-    })
+  // Remember the last rendered price so only actual changes animate.
+  const previous = previousRef.current
+  const reversed = direction !== previousDirectionRef.current
+  if (formatted !== previous) {
+    tickRef.current += 1
+    previousRef.current = formatted
+    previousDirectionRef.current = direction
   }
 
-  const previousValue = previous.value
+  const live = phase !== 'result'
+  const tone = live ? COLORS[direction] ?? COLORS.neutral : COLORS.neutral
+  const previousDigits = previous.replace(/\D/g, '')
+  const currentDigits = formatted.replace(/\D/g, '')
+  const changedFromRight = new Set()
 
-  const changedIndexes = useMemo(() => {
-    const maxLength = Math.max(
-      formatted.length,
-      previousValue.length,
-    )
+  for (let i = 0; i < currentDigits.length; i += 1) {
+    const current = currentDigits[currentDigits.length - 1 - i]
+    const prior = previousDigits[previousDigits.length - 1 - i]
+    if (current !== prior) changedFromRight.add(i)
+  }
 
-    const indexes = new Set()
-
-    for (let index = 0; index < maxLength; index += 1) {
-      if (formatted[index] !== previousValue[index]) {
-        indexes.add(index)
-      }
-    }
-
-    return indexes
-  }, [formatted, previousValue])
-
-  const tone = live ? TONES[direction] ?? TONES.up : TONES.closed
-  const rowKey = previous.tick
+  let digitPosition = -1
+  const digitTotal = currentDigits.length
 
   return (
     <div
       role="group"
-      aria-label="Live market price"
-      className="
-        relative
-        mx-auto
-        flex
-        h-[52px]
-        w-full
-        max-w-[420px]
-        items-center
-        justify-between
-        rounded-full
-        border
-        border-cyan-400/40
-        bg-gradient-to-r
-        from-cyan-950/70
-        via-black/85
-        to-cyan-950/70
-        px-4
-        shadow-[0_0_25px_rgba(0,191,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.35),inset_0_-4px_10px_rgba(0,0,0,0.85)]
-        backdrop-blur-2xl
-      "
+      aria-label={`${marketName || 'Market'} ${live ? 'live' : 'final'} price ${formatted}`}
+      className="relative mx-auto flex h-[24px] w-full max-w-[860px] min-w-0 items-center justify-between overflow-hidden border-x border-cyan-400/30 bg-[linear-gradient(90deg,rgba(0,12,22,0.55),rgba(0,20,34,0.82)_50%,rgba(0,12,22,0.55))] px-3 shadow-[inset_0_1px_0_rgba(160,245,255,0.24),inset_0_-1px_0_rgba(0,200,255,0.22)] sm:h-[28px] sm:px-5"
+      style={{ clipPath: 'polygon(3% 0,97% 0,100% 50%,97% 100%,3% 100%,0 50%)' }}
     >
-      {/* Top glossy reflection line */}
-      <span
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          absolute
-          inset-x-6
-          top-0
-          h-[1px]
-          bg-gradient-to-r
-          from-transparent
-          via-cyan-200/70
-          to-transparent
-        "
-      />
+      <span aria-hidden="true" className="pointer-events-none absolute inset-x-[8%] top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/65 to-transparent" />
 
-      {/* Market Name */}
-      <span
-        className="
-          truncate
-          text-[13px]
-          font-black
-          tracking-wider
-          text-white
-          drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]
-        "
-      >
-        {marketName}
+      <span className="relative z-10 flex shrink-0 items-center gap-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-200/75 sm:text-[10px]">
+        <span className="h-[5px] w-[5px] rounded-full bg-cyan-400 shadow-[0_0_5px_rgba(0,220,255,0.85)]" />
+        Price
       </span>
 
-      {/* Live Price Machine Display */}
-      <motion.div
-        key={rowKey}
+      <div
         role="img"
-        aria-label={`${marketName} live price ${formatted}`}
-        initial={
-          !reducedMotion && previous.reversal && live
-            ? REVERSAL_ANIMATION.initial
-            : false
-        }
-        animate={
-          !reducedMotion && previous.reversal && live
-            ? REVERSAL_ANIMATION.animate
-            : undefined
-        }
-        transition={
-          !reducedMotion && previous.reversal && live
-            ? REVERSAL_ANIMATION.transition
-            : undefined
-        }
-        className="
-          flex
-          overflow-hidden
-          rounded-lg
-          border
-          border-cyan-400/30
-          bg-black/60
-          shadow-[inset_0_2px_4px_rgba(0,0,0,0.9)]
-        "
+        aria-label={`Price ${formatted}`}
+        className="relative z-10 flex min-w-0 items-center justify-center gap-[1px] overflow-hidden rounded-[3px] border border-cyan-500/15 bg-black/45 px-[5px] py-[1px] shadow-[inset_0_2px_5px_rgba(0,0,0,0.85)]"
       >
-        {formatted.split('').map((char, index) => {
-          const isDigitChar = /\d/.test(char)
-          const changed = changedIndexes.has(index)
-
-          if (!isDigitChar) {
+        {[...formatted].map((char, index) => {
+          if (!/\d/.test(char)) {
             return (
-              <span
-                key={`${char}-${index}`}
-                aria-hidden="true"
-                className="
-                  grid
-                  h-7
-                  w-[10px]
-                  place-items-center
-                  border-r
-                  border-cyan-400/10
-                  text-[15px]
-                  font-black
-                  leading-none
-                  text-cyan-300/70
-                "
-              >
+              <span key={`separator-${index}`} aria-hidden="true" className="text-[11px] font-black leading-none text-cyan-200/65 sm:text-[13px]">
                 {char}
               </span>
             )
           }
 
-          const digitKey = `${index}-${char}-${rowKey}`
-
+          digitPosition += 1
+          const changed = changedFromRight.has(digitTotal - 1 - digitPosition)
           return (
-            <span
-              key={digitKey}
-              className="
-                relative
-                grid
-                h-7
-                w-[18px]
-                place-items-center
-                overflow-hidden
-                border-r
-                border-cyan-400/10
-                last:border-r-0
-              "
+            <motion.span
+              key={`digit-${index}`}
+              aria-hidden="true"
+              initial={false}
+              animate={
+                !reducedMotion && live && changed
+                  ? { y: [3, 0], opacity: [0.55, 1] }
+                  : { y: 0, opacity: 1 }
+              }
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="inline-block min-w-[10px] text-center text-[12px] font-black leading-none tabular-nums sm:min-w-[12px] sm:text-[14px]"
               style={{
-                backgroundColor:
-                  live && changed
-                    ? tone.cellGlow
-                    : 'rgba(0,191,255,0.02)',
+                color: live && changed ? tone : '#DDF8FF',
+                textShadow: live && changed ? `0 0 7px ${tone}` : '0 0 4px rgba(0,180,255,0.35)',
               }}
             >
-              <AnimatePresence initial={false} mode="popLayout">
-                <motion.span
-                  key={digitKey}
-                  aria-hidden="true"
-                  initial={
-                    !reducedMotion && live && changed
-                      ? TICK_ANIMATION.initial
-                      : false
-                  }
-                  animate={
-                    !reducedMotion && live && changed
-                      ? TICK_ANIMATION.animate
-                      : undefined
-                  }
-                  transition={
-                    !reducedMotion && live && changed
-                      ? TICK_ANIMATION.transition
-                      : undefined
-                  }
-                  className="
-                    relative
-                    z-10
-                    text-[16px]
-                    font-black
-                    leading-none
-                    tabular-nums
-                  "
-                  style={{
-                    color: live ? tone.color : TONES.closed.color,
-                    textShadow:
-                      live && changed
-                        ? tone.glow
-                        : '0 0 10px rgba(0,191,255,0.4)',
-                  }}
-                >
-                  {char}
-                </motion.span>
-              </AnimatePresence>
-            </span>
+              {char}
+            </motion.span>
           )
         })}
-      </motion.div>
+      </div>
 
-      {/* Live / Final Marker */}
-      <LiveMarker live={live} />
-    </div>
-  )
-}
-
-function LiveMarker({ live }) {
-  return (
-    <span
-      className="
-        flex
-        items-center
-        gap-1.5
-      "
-    >
-      <span className="relative flex h-2.5 w-2.5">
-        {live && (
-          <span
-            aria-hidden="true"
-            className="
-              absolute
-              inline-flex
-              h-full
-              w-full
-              animate-ping
-              rounded-full
-              bg-cyan-400/60
-              motion-reduce:animate-none
-            "
-          />
-        )}
-
-        <span
-          className={`
-            relative
-            inline-flex
-            h-2.5
-            w-2.5
-            rounded-full
-            ${
-              live
-                ? 'bg-cyan-400 shadow-[0_0_8px_rgba(0,191,255,1)]'
-                : 'bg-white/30'
-            }
-          `}
-        />
-      </span>
-
-      <span
-        className={`
-          text-[11px]
-          font-black
-          uppercase
-          tracking-[0.15em]
-          ${
-            live
-              ? 'text-cyan-300 drop-shadow-[0_0_5px_rgba(0,191,255,0.6)]'
-              : 'text-white/40'
-          }
-        `}
-      >
+      <span className="relative z-10 flex shrink-0 items-center gap-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-200 sm:text-[11px]">
+        <span className={`h-[6px] w-[6px] rounded-full ${live ? 'bg-cyan-400 shadow-[0_0_7px_rgba(0,220,255,0.9)]' : 'bg-white/35'}`} />
         {live ? 'Live' : 'Final'}
       </span>
-    </span>
+      {reversed && live && !reducedMotion && (
+        <motion.span
+          key={`reversal-${tickRef.current}`}
+          aria-hidden="true"
+          initial={{ opacity: 0.5 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="pointer-events-none absolute inset-0 bg-cyan-300/10"
+        />
+      )}
+    </div>
   )
 }
 
